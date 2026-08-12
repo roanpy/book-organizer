@@ -26,6 +26,18 @@ fi
 
 echo "🔎 校验应用包: $APP_PATH"
 
+echo "  - 检查许可证与第三方声明..."
+if ! find "$APP_PATH" -name LICENSE -type f | grep -q . || \
+   ! find "$APP_PATH" -name THIRD_PARTY_NOTICES.md -type f | grep -q .; then
+    echo "❌ 应用包缺少 LICENSE 或 THIRD_PARTY_NOTICES.md"
+    exit 1
+fi
+if ! find "$APP_PATH" -path "*ebooklib-*.dist-info/licenses/LICENSE.txt" -type f | grep -q . || \
+   ! find "$APP_PATH" -path "*pymupdf-*.dist-info/COPYING" -type f | grep -q .; then
+    echo "❌ 应用包缺少 EbookLib 或 PyMuPDF 的上游许可证"
+    exit 1
+fi
+
 echo "  - 检查未使用的 Google API 定义未被打包..."
 if find "$APP_PATH" -path "*/googleapiclient/discovery_cache/documents/*.json" -type f | grep -q .; then
     echo "❌ 应用包包含未使用的 Google API discovery 文档"
@@ -79,6 +91,7 @@ echo "  - 检查关键运行时模块导入..."
 "$PYTHON_BIN" - <<'PY'
 import bs4
 import ddgs
+import defusedxml
 import ebooklib
 import fastapi
 import fitz

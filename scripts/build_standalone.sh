@@ -107,6 +107,7 @@ echo "🔎 检查关键运行时模块..."
 python - <<'PY'
 import bs4
 import ddgs
+import defusedxml
 import ebooklib
 import fastapi
 import fitz

@@ -53,13 +53,11 @@ echo ""
 # 设置 PYTHONPATH 以便正确导入模块
 export PYTHONPATH=$PYTHONPATH:$(pwd)/src
 
-# 检查端口占用并清理
+# 检查端口占用。不要终止未知进程；由用户决定如何处理。
 PID=$(lsof -ti:18000 || true)
 if [ -n "$PID" ]; then
-    echo "⚠️  端口 18000 被占用 (PID: $PID)，正在清理..."
-    kill -9 $PID
-    sleep 1
-    echo "✅ 端口已释放"
+    echo "❌ 端口 18000 已被占用 (PID: $PID)。请先停止对应服务或改用其他端口。"
+    exit 1
 fi
 
 # 仅启动 Web 服务 (不自动打开浏览器，开发模式)

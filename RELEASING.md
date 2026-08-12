@@ -1,11 +1,14 @@
 # Releasing
 
 1. Update the version in `pyproject.toml`, `src/book_organizer/__init__.py`, and `BookOrganizer.spec`.
-2. Run the test, lint, frontend syntax, and public safety checks.
-3. Run the read-only database health endpoint or `scripts/repair_library_paths.py` in dry-run mode against a test library.
-4. Build and verify with `./scripts/build_standalone.sh`.
-5. Run `./scripts/smoke_bundle.sh` and test the installed app on a clean user account.
-6. Sign, notarize, and package:
+2. Confirm the distribution license policy for bundled EbookLib and PyMuPDF
+   (AGPL, or a valid commercial license where applicable). Do not publish the
+   application as MIT-only.
+3. Run the test, lint, frontend syntax, and public safety checks.
+4. Run the read-only database health endpoint or `scripts/repair_library_paths.py` in dry-run mode against a test library.
+5. Build and verify with `./scripts/build_standalone.sh`.
+6. Run `./scripts/smoke_bundle.sh` and test the installed app on a clean user account.
+7. Sign, notarize, and package:
 
 ```bash
 export BOOK_ORGANIZER_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"

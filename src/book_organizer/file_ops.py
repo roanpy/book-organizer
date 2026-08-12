@@ -38,53 +38,42 @@ def resolve_file_path(filename: str, config: Dict[str, Any]) -> Optional[str]:
     if not filename:
         return None
 
-    # 1. Check Source Dir
-    source_dir = config.get("source_dir")
-    if source_dir:
-        candidate = os.path.join(source_dir, filename)
-        if os.path.exists(candidate):
+    roots = [config.get("source_dir"), config.get("target_dir")]
+    roots.extend(config.get("library_directories") or [])
+    roots = [
+        os.path.realpath(os.path.abspath(os.path.expanduser(root)))
+        for root in roots
+        if root
+    ]
+
+    def managed_candidate(path: str) -> Optional[str]:
+        candidate = os.path.realpath(os.path.abspath(os.path.expanduser(path)))
+        try:
+            inside = any(os.path.commonpath([candidate, root]) == root for root in roots)
+        except ValueError:
+            inside = False
+        return candidate if inside and os.path.isfile(candidate) else None
+
+    if os.path.isabs(os.path.expanduser(filename)):
+        return managed_candidate(filename)
+
+    # Check configured roots. managed_candidate also rejects ../ traversal and
+    # symlinks whose real target escapes the configured directory.
+    for root in roots:
+        candidate = managed_candidate(os.path.join(root, filename))
+        if candidate:
             return candidate
-        else:
-            print(f"DEBUG: Not found in source_dir: {candidate}")
 
-    # 2. Check Target Dir
-    target_dir = config.get("target_dir")
-    if target_dir:
-        candidate = os.path.join(target_dir, filename)
-        if os.path.exists(candidate):
-            return candidate
-        else:
-            print(f"DEBUG: Not found in target_dir: {candidate}")
-
-    # 3. Check Library Directories
-    lib_dirs = config.get("library_directories", [])
-    for lib_dir in lib_dirs:
-        candidate = os.path.join(lib_dir, filename)
-        if os.path.exists(candidate):
-            return candidate
-
-    # 4. Check Absolute Path
-    if os.path.exists(filename):
-        return filename
-
-    # 5. Fallback: Recursive Search (for when frontend sends basename only)
-    # Search Source Dir
-    if source_dir:
-        for root, _, files in os.walk(source_dir):
-            if filename in files:
-                found = os.path.join(root, filename)
-                print(f"DEBUG: Resolved via recursive source_dir search: {found}")
-                return found
-
-    # Search Target Dir
-    if target_dir:
-        for root, _, files in os.walk(target_dir):
-            if filename in files:
-                found = os.path.join(root, filename)
-                print(f"DEBUG: Resolved via recursive target_dir search: {found}")
-                return found
-
-    print(f"DEBUG: resolve_file_path failed for: '{filename}'")
+    # Fallback recursive search only applies to a basename. A relative path was
+    # already checked exactly above and must not silently match a different file.
+    if os.path.basename(filename) == filename:
+        for configured_root in roots:
+            for root, _, files in os.walk(configured_root):
+                if filename not in files:
+                    continue
+                found = managed_candidate(os.path.join(root, filename))
+                if found:
+                    return found
     return None
 
 

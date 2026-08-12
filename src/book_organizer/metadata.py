@@ -41,7 +41,7 @@ def _extract_pdf_xmp_metadata(doc: Any) -> Tuple[Dict[str, Any], bool]:
     has_xmp = False
 
     try:
-        import xml.etree.ElementTree as ET
+        from defusedxml import ElementTree as ET
 
         xmp = doc.get_xml_metadata()
         if not xmp:

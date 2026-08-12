@@ -32,11 +32,7 @@ jobs:
           
       - name: Build macOS App
         run: |
-          pyinstaller BookOrganizer.spec
-            
-      - name: Upload macOS Artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: BookOrganizer-macOS
-          path: dist/BookOrganizer.app/
-          retention-days: 30
+          ./scripts/build_standalone.sh
+
+      # Distribution stays disabled until the maintainer confirms the AGPL or
+      # commercial-license policy for bundled EbookLib and PyMuPDF components.

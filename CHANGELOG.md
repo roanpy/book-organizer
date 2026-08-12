@@ -5,6 +5,7 @@
 - Updated vulnerable pinned Python dependencies to patched compatible releases.
 - Pinned GitHub Actions to immutable commits and grouped coordinated Dependabot updates.
 - Added SQLite schema version tracking, sanitized AI errors, and frontend workflow contract checks.
+- Restricted file resolution to configured book roots and included license notices in packaged artifacts.
 
 ## 0.8.3
 

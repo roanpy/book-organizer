@@ -1,10 +1,10 @@
 # Build and desktop-shell dependencies.
 # These are installed by packaging scripts in addition to requirements.txt.
-altgraph==0.17.4; sys_platform == "darwin"
+altgraph==0.17.5; sys_platform == "darwin"
 bottle==0.13.4
 macholib==1.16.3; sys_platform == "darwin"
-pyinstaller==6.16.0
-pyinstaller-hooks-contrib==2025.9
+pyinstaller==6.22.0
+pyinstaller-hooks-contrib==2026.6
 pyobjc-core==12.2.2; sys_platform == "darwin"
 pyobjc-framework-Cocoa==12.2.2; sys_platform == "darwin"
 pyobjc-framework-Quartz==12.2.2; sys_platform == "darwin"

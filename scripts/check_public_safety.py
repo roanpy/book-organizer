@@ -10,12 +10,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SKIP_DIRS = {".git", ".venv", "venv", "build", "dist", "__pycache__"}
 FORBIDDEN_NAMES = {
+    ".env",
     "book_data.db",
     "book_organizer.db",
     "book_organizer_config.json",
     "google_drive_token.json",
     "client_secrets.json",
 }
+FORBIDDEN_SUFFIXES = {".db", ".sqlite", ".sqlite3", ".zip", ".pem", ".key", ".p12", ".pfx", ".mobileprovision"}
 TEXT_SUFFIXES = {
     ".bat", ".css", ".html", ".ini", ".js", ".json", ".md", ".py",
     ".sh", ".toml", ".txt", ".yaml", ".yml",
@@ -26,6 +28,7 @@ PATTERNS = {
     "Google API key": re.compile(r"AIza[0-9A-Za-z_-]{20,}"),
     "OpenAI-style secret": re.compile(r"\bsk-[0-9A-Za-z_-]{16,}"),
     "GitHub token": re.compile(r"\bgh[oprsu]_[0-9A-Za-z]{20,}"),
+    "private key": re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----"),
 }
 
 
@@ -46,7 +49,7 @@ def main() -> int:
         if path.is_symlink():
             errors.append(f"symlink: {relative}")
             continue
-        if path.name in FORBIDDEN_NAMES or path.suffix.lower() in {".db", ".sqlite", ".sqlite3", ".zip"}:
+        if path.name in FORBIDDEN_NAMES or path.name.startswith(".env.") or path.suffix.lower() in FORBIDDEN_SUFFIXES:
             errors.append(f"private or generated artifact: {relative}")
         stat = path.stat()
         inode = (stat.st_dev, stat.st_ino)
