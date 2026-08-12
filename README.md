@@ -68,6 +68,11 @@ Portable preferences can be synchronized, but API keys and tokens are excluded u
 
 The packaged desktop application is verified on Apple Silicon macOS. The source also runs as a local web app on Python-supported systems; no Windows desktop bundle is currently published. The macOS build script runs bundle privacy checks before producing `dist/BookOrganizer.app`. See [RELEASING.md](RELEASING.md) for the release workflow.
 
+The source repository is MIT licensed. Desktop bundles also contain EbookLib
+and PyMuPDF, which are AGPL-licensed (PyMuPDF also offers a commercial license).
+Do not redistribute a bundle as MIT-only; review and satisfy all applicable
+third-party terms in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 ## Development
 
 ```bash
@@ -92,4 +97,5 @@ The main branch does not bundle a cloud-drive SDK or perform automatic uploads. 
 
 ## License
 
-[MIT](LICENSE)
+Project source: [MIT](LICENSE). Bundled applications remain subject to the
+licenses of included dependencies.

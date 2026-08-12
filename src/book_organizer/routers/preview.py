@@ -70,7 +70,20 @@ def _path_is_under_root(path: str, root: str) -> bool:
 
 def _resolve_existing_book_file(requested_path: str) -> tuple[str, str, Dict[str, Any]]:
     config = _load_config()
-    file_path = resolve_file_path(requested_path, config)
+    roots = _configured_preview_roots(config)
+    requested_real_path = os.path.realpath(
+        os.path.abspath(os.path.expanduser(requested_path))
+    )
+    if os.path.isabs(os.path.expanduser(requested_path)) and os.path.isfile(
+        requested_real_path
+    ):
+        if not roots or not any(
+            _path_is_under_root(requested_real_path, root) for root in roots
+        ):
+            raise HTTPException(status_code=403, detail="预览路径不在已配置的图书目录内")
+        file_path = requested_real_path
+    else:
+        file_path = resolve_file_path(requested_path, config)
     if not file_path:
         raise HTTPException(status_code=404, detail="文件不存在")
 
@@ -78,7 +91,6 @@ def _resolve_existing_book_file(requested_path: str) -> tuple[str, str, Dict[str
     if not os.path.isfile(real_path):
         raise HTTPException(status_code=404, detail="文件不存在")
 
-    roots = _configured_preview_roots(config)
     if not roots or not any(_path_is_under_root(real_path, root) for root in roots):
         raise HTTPException(status_code=403, detail="预览路径不在已配置的图书目录内")
 

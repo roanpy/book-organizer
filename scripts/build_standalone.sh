@@ -10,7 +10,6 @@
 #   - 自动创建虚拟环境并安装依赖
 #   - 使用 PyInstaller 打包为单一应用
 #   - 自动优化体积 (删除不必要的模块, ~90MB 节省)
-#   - 支持 UPX 压缩 (可选, 额外减小 30-40%)
 #   - 包含所有 AI 引擎支持 (Gemini/DeepSeek/Ollama/自定义)
 #   - 包含 Calibre PDF 转换支持
 #
@@ -27,7 +26,7 @@
 #
 # ==========================================
 
-set -e  # 遇到错误立即退出
+set -euo pipefail
 
 echo "=========================================="
 echo "   Book Organizer - Mac 应用构建 v0.8.3"
@@ -37,7 +36,7 @@ echo "=========================================="
 cd "$(dirname "$0")/.." || exit
 
 select_build_python() {
-    for candidate in python3.13 python3.12 python3.11 python3; do
+    for candidate in python3 python3.13 python3.12 python3.11; do
         if command -v "$candidate" &> /dev/null; then
             if "$candidate" - <<'PY' &> /dev/null
 import sys
@@ -53,33 +52,30 @@ PY
     return 1
 }
 
-if [ -d "venv" ]; then
-    PYTHON_BIN="venv/bin/python"
-else
-    if ! PYTHON_BIN="$(select_build_python)"; then
-        echo "❌ 错误: 未找到兼容的 Python。请安装 Python 3.11、3.12 或 3.13。"
-        exit 1
-    fi
+if ! PYTHON_BIN="$(select_build_python)"; then
+    echo "❌ 错误: 未找到兼容的 Python。请安装 Python 3.11、3.12 或 3.13。"
+    exit 1
 fi
 
 echo "✓ 构建 Python: $("$PYTHON_BIN" --version)"
 
-# 创建虚拟环境（如果不存在）
-if [ ! -d "venv" ]; then
-    echo "📦 创建虚拟环境..."
-    "$PYTHON_BIN" -m venv venv
-fi
+# Always build in a fresh environment so an old local venv cannot change the bundle.
+BUILD_VENV=$(mktemp -d "${TMPDIR:-/tmp}/book-organizer-build.XXXXXX")
+cleanup_build_venv() {
+    find "$BUILD_VENV" -depth -delete 2>/dev/null || true
+}
+trap cleanup_build_venv EXIT
 
 # 激活虚拟环境
-echo "🔄 激活虚拟环境..."
-source venv/bin/activate
+echo "📦 创建隔离构建环境..."
+"$PYTHON_BIN" -m venv "$BUILD_VENV"
+source "$BUILD_VENV/bin/activate"
 python - <<'PY'
 import sys
 version = sys.version_info[:2]
 if not ((3, 11) <= version <= (3, 13)):
     raise SystemExit(
-        f"❌ 当前虚拟环境 Python {sys.version.split()[0]} 不受支持。"
-        "请删除 venv 后使用 Python 3.11、3.12 或 3.13 重新构建。"
+        f"❌ 构建环境 Python {sys.version.split()[0]} 不受支持。"
     )
 PY
 
@@ -91,22 +87,20 @@ install_requirements_file() {
     fi
 
     echo "  安装 $requirements_file"
-    if ! pip install -r "$requirements_file" -i https://pypi.tuna.tsinghua.edu.cn/simple; then
-        echo "⚠️  清华源安装 $requirements_file 失败，回退到官方 PyPI..."
-        pip install -r "$requirements_file"
-    fi
+    python -m pip install -r "$requirements_file"
 }
 
 echo "📥 安装依赖..."
-pip install --upgrade pip -i https://pypi.tuna.tsinghua.edu.cn/simple
+python -m pip install --upgrade pip
 install_requirements_file requirements.txt
 install_requirements_file requirements-build.txt
-pip check
+python -m pip check
 
 echo "🔎 检查关键运行时模块..."
 python - <<'PY'
 import bs4
 import ddgs
+import defusedxml
 import ebooklib
 import fastapi
 import fitz
@@ -143,34 +137,16 @@ PY
 echo "🧹 清理旧的构建文件..."
 rm -rf build dist
 
-# 准备图标（如果存在）
-ICON_OPTION=""
-if [ -f "assets/icon.icns" ]; then
-    echo "✓ 找到图标文件: assets/icon.icns"
-    ICON_OPTION="--icon assets/icon.icns"
-elif [ -f "assets/icon.png" ]; then
-    echo "⚠️  找到 PNG 图标，但需要 .icns 格式"
-    echo "💡 提示: 可以使用以下命令转换:"
-    echo "   sips -s format icns assets/icon.png --out assets/icon.icns"
-else
-    echo "⚠️  未找到图标文件，将使用默认图标"
+# spec requires the tracked macOS application icon.
+if [ ! -f "assets/icon.icns" ]; then
+    echo "❌ 缺少应用图标: assets/icon.icns"
+    exit 1
 fi
-
-# 检查 UPX 是否可用
-UPX_OPTION=""
-if command -v upx &> /dev/null; then
-    echo "✓ UPX 已安装，将启用可执行文件压缩"
-    UPX_DIR=$(dirname $(which upx))
-    UPX_OPTION="--upx-dir $UPX_DIR"
-else
-    echo "⚠️  未找到 UPX，跳过可执行文件压缩"
-    echo "💡 提示: 安装 UPX 可减小约 30-40% 体积:"
-    echo "   brew install upx"
-fi
+echo "✓ 找到图标文件: assets/icon.icns"
 
 # 使用 PyInstaller 构建应用
 echo "🔨 构建 Mac 应用 (使用 spec 文件)..."
-pyinstaller --noconfirm --clean BookOrganizer.spec
+python -m PyInstaller --noconfirm --clean BookOrganizer.spec
 
 # 检查构建是否成功
 if [ -d "dist/BookOrganizer.app" ]; then
@@ -248,7 +224,8 @@ if [ -d "dist/BookOrganizer.app" ]; then
     fi
 
     echo "🔎 运行打包后校验..."
-    ./scripts/verify_bundle.sh "dist/BookOrganizer.app"
+    BOOK_ORGANIZER_VERIFY_PYTHON="$BUILD_VENV/bin/python" \
+        ./scripts/verify_bundle.sh "dist/BookOrganizer.app"
     
     # 计算应用大小
     APP_SIZE=$(du -sh dist/BookOrganizer.app | cut -f1)
@@ -267,15 +244,8 @@ if [ -d "dist/BookOrganizer.app" ]; then
     echo "5. 如果一切正常，复制到应用程序文件夹:"
     echo "   rm -rf /Applications/BookOrganizer.app && cp -R dist/BookOrganizer.app /Applications/"
     echo ""
-    if [ ! -f "assets/icon.icns" ] && [ -f "assets/icon.png" ]; then
-        echo "💡 优化建议:"
-        echo "转换图标为 .icns 格式以获得更好的显示效果:"
-        echo "   sips -s format icns assets/icon.png --out assets/icon.icns"
-        echo ""
-    fi
     echo "ℹ️  优化说明:"
     echo "此版本不包含云盘 SDK；PDF 导出文件可手动导入外部服务。"
-    echo "如需进一步优化，可考虑使用 UPX 压缩。"
     echo "=========================================="
 else
     echo ""

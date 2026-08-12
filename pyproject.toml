@@ -19,6 +19,7 @@ dependencies = [
     # used by local development and packaging.
     "beautifulsoup4",
     "ddgs>=9.14.4",
+    "defusedxml>=0.7.1",
     "EbookLib",
     "fastapi>=0.100.0",
     "google-auth>=2.15.0,<2.42.0",
@@ -32,14 +33,9 @@ dependencies = [
     "pikepdf>=9.0.0",
     "PyMuPDF>=1.26.0",
     "pypdf>=6.0.0",
-    "pywebview",
     "requests",
-    "tiktoken",
     "uvicorn>=0.20.0",
 ]
-
-[project.scripts]
-book-organizer = "server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/book_organizer"]

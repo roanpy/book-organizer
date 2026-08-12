@@ -10,9 +10,7 @@ APP_PATH="${1:-dist/BookOrganizer.app}"
 PYTHON_BIN="${BOOK_ORGANIZER_VERIFY_PYTHON:-}"
 
 if [ -z "$PYTHON_BIN" ]; then
-    if [ -x "venv/bin/python" ]; then
-        PYTHON_BIN="venv/bin/python"
-    elif command -v python3 >/dev/null 2>&1; then
+    if command -v python3 >/dev/null 2>&1; then
         PYTHON_BIN="python3"
     else
         PYTHON_BIN="python"
@@ -25,6 +23,77 @@ if [ ! -d "$APP_PATH" ]; then
 fi
 
 echo "🔎 校验应用包: $APP_PATH"
+
+echo "  - 检查许可证与第三方声明..."
+if ! find "$APP_PATH" -name LICENSE -type f | grep -q . || \
+   ! find "$APP_PATH" -name THIRD_PARTY_NOTICES.md -type f | grep -q .; then
+    echo "❌ 应用包缺少 LICENSE 或 THIRD_PARTY_NOTICES.md"
+    exit 1
+fi
+if ! find "$APP_PATH" -path "*ebooklib-*.dist-info/licenses/LICENSE.txt" -type f | grep -q . || \
+   ! find "$APP_PATH" -path "*pymupdf-*.dist-info/COPYING" -type f | grep -q .; then
+    echo "❌ 应用包缺少 EbookLib 或 PyMuPDF 的上游许可证"
+    exit 1
+fi
+for license_file in \
+    Loguru-0.7.3.txt \
+    Primp-1.2.3.txt \
+    PyObjC-12.2.2.txt \
+    Tokenizers-0.23.1.txt; do
+    if ! find "$APP_PATH" -path "*/licenses/$license_file" -type f | grep -q .; then
+        echo "❌ 应用包缺少补充许可证: $license_file"
+        exit 1
+    fi
+done
+APP_PATH="$APP_PATH" "$PYTHON_BIN" - <<'PY'
+import importlib.metadata
+import os
+from pathlib import Path
+
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
+
+app = Path(os.environ["APP_PATH"])
+installed = {
+    canonicalize_name(distribution.metadata["Name"]): distribution
+    for distribution in importlib.metadata.distributions()
+    if distribution.metadata["Name"]
+}
+pending = []
+for requirements_file in ("requirements.txt", "requirements-desktop.txt"):
+    for line in Path(requirements_file).read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith(("#", "-")):
+            requirement = Requirement(line)
+            if requirement.marker is None or requirement.marker.evaluate({"extra": ""}):
+                pending.append(canonicalize_name(requirement.name))
+
+missing = []
+checked = set()
+while pending:
+    normalized_name = pending.pop()
+    if normalized_name in checked or normalized_name not in installed:
+        continue
+    checked.add(normalized_name)
+    distribution = installed[normalized_name]
+    metadata_file = next(
+        Path(file) for file in distribution.files or []
+        if str(file).endswith(".dist-info/METADATA")
+    )
+    if not any(app.rglob(metadata_file.parts[0])):
+        missing.append(distribution.metadata["Name"])
+    for dependency in distribution.requires or []:
+        requirement = Requirement(dependency)
+        if requirement.marker is None or requirement.marker.evaluate({"extra": ""}):
+            pending.append(canonicalize_name(requirement.name))
+if missing:
+    raise SystemExit("❌ 应用包缺少依赖许可证元数据: " + ", ".join(missing))
+PY
+proxy_metadata=$(find "$APP_PATH" -path "*proxy_tools-0.1.0.dist-info/METADATA" -type f -print -quit)
+if [ -z "$proxy_metadata" ] || ! grep -q '^License: MIT$' "$proxy_metadata"; then
+    echo "❌ 应用包缺少 Proxy Tools 0.1.0 的 MIT 元数据声明"
+    exit 1
+fi
 
 echo "  - 检查未使用的 Google API 定义未被打包..."
 if find "$APP_PATH" -path "*/googleapiclient/discovery_cache/documents/*.json" -type f | grep -q .; then
@@ -46,6 +115,20 @@ matches=$(find "$APP_PATH" \
 if [ -n "$matches" ]; then
     echo "❌ 应用包包含敏感本地文件:"
     printf '%s\n' "$matches"
+    exit 1
+fi
+
+echo "  - 检查未复制源码缓存..."
+if find "$APP_PATH/Contents/Resources" \
+    \( -path "*/book_organizer/__pycache__/*" -o -path "*/book_organizer/*.pyc" \) \
+    -type f 2>/dev/null | grep -q .; then
+    echo "❌ 应用包包含源码目录中的 Python 缓存"
+    exit 1
+fi
+if grep -R -a -F "$HOME/" "$APP_PATH" >/dev/null 2>&1 || \
+   grep -R -a -E '/private/var/folders/[^[:space:]]*/book-organizer-build\.' \
+       "$APP_PATH" >/dev/null 2>&1; then
+    echo "❌ 应用包包含本机用户目录或临时构建路径"
     exit 1
 fi
 
@@ -79,6 +162,7 @@ echo "  - 检查关键运行时模块导入..."
 "$PYTHON_BIN" - <<'PY'
 import bs4
 import ddgs
+import defusedxml
 import ebooklib
 import fastapi
 import fitz

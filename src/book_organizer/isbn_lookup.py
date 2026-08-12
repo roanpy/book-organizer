@@ -311,7 +311,8 @@ def lookup_via_calibre(
         图书元数据字典
     """
     import subprocess
-    import xml.etree.ElementTree as ET
+
+    from defusedxml import ElementTree as ET
 
     from .pdf_converter import find_calibre_tool
 

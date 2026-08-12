@@ -56,10 +56,14 @@ python scripts/check_public_safety.py
 
 Calibre 的 `ebook-convert` 只用于可选的 PDF 转换，不随程序捆绑。生成的 PDF 可手动导入 NotebookLM 等服务；主分支不包含云盘 SDK，也不会自动上传。原 Google Drive 集成保存在 `archive/google-drive-integration` 分支。
 
+项目自身源码采用 MIT 许可证。桌面打包程序还包含采用 AGPL 许可证的
+EbookLib 和 PyMuPDF（PyMuPDF 也提供商业授权）。不得把组合后的应用包当作
+纯 MIT 软件分发；发布前必须核实并满足 [第三方声明](THIRD_PARTY_NOTICES.md)。
+
 ## 书库健康检查
 
 `GET /api/db/health` 只读检查 SQLite 完整性、旧路径、孤立记录和损坏的目录 JSON，不会修改图书文件或数据库记录。路径修复仍通过 `scripts/repair_library_paths.py` 先预览、备份后显式执行。
 
 ## 许可证
 
-[MIT](LICENSE)
+项目源码：[MIT](LICENSE)。打包程序同时受其所含第三方依赖许可证约束。
