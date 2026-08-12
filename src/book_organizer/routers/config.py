@@ -9,7 +9,10 @@ from typing import Any, Dict
 from fastapi import APIRouter, Body, HTTPException
 
 from book_organizer import db_fingerprint, optimize_additional_rules_with_ai
-from book_organizer.ai_engines.dispatcher import build_litellm_model_options
+from book_organizer.ai_engines.dispatcher import (
+    build_litellm_model_options,
+    format_ai_error,
+)
 from book_organizer.config import (
     CONFIG_FILE,
     get_default_ai_config,
@@ -424,7 +427,7 @@ def list_models(provider: str, request: ModelRequest) -> Dict[str, Any]:
     except Exception as e:
         # Return empty list or error message instead of 500 to avoid breaking UI
         print(f"Error fetching models for {provider}: {e}")
-        return {"models": [], "error": str(e)}
+        return {"models": [], "error": format_ai_error(e)}
 
 
 @router.post("/api/test_connection_v2")
@@ -482,7 +485,7 @@ def test_connection_v2(request: TestConnectionRequest) -> Dict[str, Any]:
             "models": models,
         }
     except Exception as e:
-        return {"success": False, "message": str(e)}
+        return {"success": False, "message": format_ai_error(e)}
 
 
 @router.post("/api/test_custom_provider")
@@ -532,7 +535,7 @@ def test_custom_provider(request: TestCustomProviderRequest) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        return {"success": False, "message": str(e)}
+        return {"success": False, "message": format_ai_error(e)}
 
 
 @router.get("/api/ai_config")

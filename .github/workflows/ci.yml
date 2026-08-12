@@ -54,6 +54,7 @@ jobs:
           node --check static/js/modules/sync.js
           node --check static/js/modules/settings/cloud-sync.js
           node --check static/js/modules/libraryBatch/process.js
+          node scripts/check_frontend_contracts.js
 
       - name: Check public source safety
         run: python scripts/check_public_safety.py

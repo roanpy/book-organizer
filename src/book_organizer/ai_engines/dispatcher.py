@@ -10,9 +10,31 @@ Contains:
 """
 
 import json
+import logging
 from typing import Any, Dict, Optional
 
 from ..gemini_client import create_gemini_model
+
+logger = logging.getLogger(__name__)
+
+
+def format_ai_error(error: Exception | str) -> str:
+    """Return a stable user message while keeping provider details out of the UI."""
+    message = str(error)
+    lowered = message.lower()
+    if "llm provider not provided" in lowered:
+        return "模型提供商配置不完整，请检查模型名称和 Provider 类型。"
+    if "503" in lowered or "unavailable" in lowered or "high demand" in lowered:
+        return "AI 服务暂时繁忙（503），请稍后重试或切换其他模型。"
+    if "429" in lowered or "rate" in lowered or "quota" in lowered:
+        return "AI 服务额度不足或请求过于频繁，请稍后重试。"
+    if any(token in lowered for token in ("401", "403", "unauthorized", "api key", "api_key")):
+        return "AI 认证失败，请检查 API Key 和账号权限。"
+    if "timeout" in lowered or "timed out" in lowered:
+        return "AI 请求超时，请检查网络后重试。"
+    if "connect" in lowered or "network" in lowered:
+        return "无法连接 AI 服务，请检查网络和服务地址。"
+    return "AI 调用失败，请检查模型配置和网络后重试。"
 
 # LiteLLM as primary AI call library (needs tiktoken data at packaging time)
 try:
@@ -99,26 +121,8 @@ def _call_ai_engine(
         return _call_via_native_sdk(engine_choice, engine_config, prompt, json_mode)
 
     except Exception as e:
-        error_type = type(e).__name__
-        error_msg = str(e)
-        # Provide more context for common errors
-        if "rate" in error_msg.lower() or "limit" in error_msg.lower():
-            detail = f"API 限流: {error_msg}"
-        elif (
-            "auth" in error_msg.lower()
-            or "key" in error_msg.lower()
-            or "401" in error_msg
-        ):
-            detail = f"认证失败: {error_msg}"
-        elif "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
-            detail = f"请求超时: {error_msg}"
-        elif "connect" in error_msg.lower() or "network" in error_msg.lower():
-            detail = f"网络连接错误: {error_msg}"
-        else:
-            detail = f"{error_type}: {error_msg}"
-
-        print(f"❌ AI Call Error [{error_type}]: {error_msg}")
-        return {"error": f"AI 调用失败 - {detail}"}
+        logger.exception("AI call failed for provider %s", engine_choice)
+        return {"error": format_ai_error(e)}
 
 
 def _call_via_litellm(
@@ -355,4 +359,5 @@ def dispatch_ai_request(
             return _call_ai_engine(engine_choice, config, prompt, json_mode=json_mode)
 
     except Exception as e:
-        return {"error": f"API 调用失败: {e}"}
+        logger.exception("AI request failed for provider %s", engine_choice)
+        return {"error": format_ai_error(e)}

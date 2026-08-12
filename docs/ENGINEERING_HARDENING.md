@@ -25,3 +25,13 @@ Status: complete, except external Apple credentials.
 Formal notarization still requires the maintainer's Apple Developer certificate
 and a local `notarytool` keychain profile. These credentials are never stored in
 the repository.
+
+## Maintenance Follow-up
+
+- Record schema version `3` with SQLite `PRAGMA user_version`; migrations remain
+  small and idempotent without an external migration framework.
+- Run lightweight CI contracts for analysis cleanup, first-detail rendering,
+  settings persistence, and database sync entry points.
+- Keep the native Gemini, OpenAI-compatible, and Ollama clients because built-in
+  model calls and settings validation still use them; custom providers use LiteLLM.
+- Log provider exception details locally while returning short actionable UI errors.

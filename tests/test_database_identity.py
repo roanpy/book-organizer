@@ -2,7 +2,25 @@ import json
 import sqlite3
 
 from book_organizer import library_path_repair
-from book_organizer.database import UNIFIED_DB_NAME, KnowledgeCoreDB
+from book_organizer.database import DB_SCHEMA_VERSION, UNIFIED_DB_NAME, KnowledgeCoreDB
+
+
+def test_database_records_current_schema_version(tmp_path):
+    db = KnowledgeCoreDB(db_dir=str(tmp_path / "data"))
+    with sqlite3.connect(db.db_path) as conn:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == DB_SCHEMA_VERSION
+
+
+def test_database_does_not_downgrade_future_schema_version(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = data_dir / UNIFIED_DB_NAME
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(f"PRAGMA user_version = {DB_SCHEMA_VERSION + 1}")
+
+    db = KnowledgeCoreDB(db_dir=str(data_dir))
+    with sqlite3.connect(db.db_path) as conn:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == DB_SCHEMA_VERSION + 1
 
 
 def test_same_name_books_keep_separate_summaries_and_tocs(monkeypatch, tmp_path):

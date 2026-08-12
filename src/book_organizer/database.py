@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 # 统一的数据库文件名
 UNIFIED_DB_NAME = "book_data.db"
+DB_SCHEMA_VERSION = 3
 
 # 旧的数据库文件名（用于迁移）
 OLD_SUMMARIES_DB = "enhanced_summaries.db"
@@ -221,6 +222,9 @@ class KnowledgeCoreDB:
 
                 # 尝试迁移旧数据
                 self._migrate_legacy_data(conn)
+                current_version = conn.execute("PRAGMA user_version").fetchone()[0]
+                if current_version < DB_SCHEMA_VERSION:
+                    conn.execute(f"PRAGMA user_version = {DB_SCHEMA_VERSION}")
 
         except Exception as e:
             logger.error(f"Failed to init KnowledgeDB: {e}")

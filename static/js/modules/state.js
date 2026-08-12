@@ -51,6 +51,9 @@ function formatApiErrorMessage(error, fallback = '请求失败') {
     if (/ServiceUnavailable|UNAVAILABLE|high demand|503/i.test(message)) {
         return 'AI 服务暂时繁忙（503），请稍后重试，或临时切换其他模型。';
     }
+    if (/LLM Provider NOT provided/i.test(message)) {
+        return '模型提供商配置不完整，请检查模型名称和 Provider 类型。';
+    }
     if (/API key|api_key|Unauthorized|401|403|permission|quota/i.test(message)) {
         return 'AI 配置、额度或 API Key 可能不可用，请检查模型配置。';
     }
