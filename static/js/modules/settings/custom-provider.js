@@ -264,16 +264,20 @@ function renderCustomProviders(providers) {
                     </label>
                 </div>
                 <div class="card-actions">
-                    <button class="btn-secondary btn-sm" onclick="testCustomProvider('${name.replace(/'/g, "\\'")}')">验证连接</button>
-                    <button class="btn-primary btn-sm" onclick="saveCustomProvider('${name.replace(/'/g, "\\'")}')">保存</button>
-                    <button class="btn-danger btn-sm" onclick="deleteCustomProvider('${name.replace(/'/g, "\\'")}')">删除</button>
+                    <button class="btn-secondary btn-sm" data-provider-action="test">验证连接</button>
+                    <button class="btn-primary btn-sm" data-provider-action="save">保存</button>
+                    <button class="btn-danger btn-sm" data-provider-action="delete">删除</button>
                 </div>
             </div>
             <div class="card-footer">
                 <span class="text-muted text-sm">JSON模式: ${jsonModeStatus ? '✓' : '✗'}</span>
-                <button class="btn-text" onclick="toggleEdit('custom-${escapeHtml(name)}')">配置 / 修改</button>
+                <button class="btn-text" data-provider-action="toggle">配置 / 修改</button>
             </div>
         `;
+        card.querySelector('[data-provider-action="test"]').addEventListener('click', () => testCustomProvider(name));
+        card.querySelector('[data-provider-action="save"]').addEventListener('click', () => saveCustomProvider(name));
+        card.querySelector('[data-provider-action="delete"]').addEventListener('click', () => deleteCustomProvider(name));
+        card.querySelector('[data-provider-action="toggle"]').addEventListener('click', () => toggleEdit(`custom-${name}`));
         container.appendChild(card);
     });
 }

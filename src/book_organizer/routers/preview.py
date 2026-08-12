@@ -13,6 +13,8 @@ from fastapi.responses import FileResponse
 from book_organizer.file_ops import resolve_file_path
 from book_organizer.pdf_converter import CONVERTIBLE_FORMATS
 
+from . import internal_error
+
 router = APIRouter(tags=["preview"])
 
 PREVIEW_FORMATS = {
@@ -653,7 +655,7 @@ def get_pdf_preview_page(path: str, page: int = 1, zoom: float = 1.35):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"PDF 页面预览失败: {e}")
+        raise internal_error("render PDF preview", e, "PDF 页面预览失败")
 
 
 @router.get("/api/preview/epub")
@@ -664,7 +666,7 @@ def get_epub_preview(path: str) -> Dict[str, Any]:
     try:
         return _extract_epub_preview(file_path)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"EPUB 预览读取失败: {e}")
+        raise internal_error("load EPUB preview", e, "EPUB 预览读取失败")
 
 
 @router.get("/api/preview/epub/manifest")
@@ -676,7 +678,7 @@ def get_epub_preview_manifest(path: str, response: Response) -> Dict[str, Any]:
     try:
         return _extract_epub_manifest(file_path)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"EPUB 目录读取失败: {e}")
+        raise internal_error("load EPUB manifest", e, "EPUB 目录读取失败")
 
 
 @router.get("/api/preview/epub/chapter")
@@ -690,7 +692,7 @@ def get_epub_preview_chapter(path: str, index: int, response: Response) -> Dict[
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"EPUB 正文读取失败: {e}")
+        raise internal_error("load EPUB chapter", e, "EPUB 正文读取失败")
 
 
 @router.get("/api/preview/text")

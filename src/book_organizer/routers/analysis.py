@@ -4,7 +4,6 @@ import os
 import queue
 import re
 import time
-import traceback
 from multiprocessing import Process, Queue
 from threading import Lock
 from typing import Any, Dict, Optional
@@ -26,11 +25,12 @@ from book_organizer.ai_engines import (
     get_batch_enhance_analysis,
     get_batch_organize_analysis,
 )
+from book_organizer.ai_engines.dispatcher import format_ai_error
 from book_organizer.config import get_content_search_config, load_ai_config, load_config
 from book_organizer.database import get_db, get_toc_db
 from book_organizer.file_ops import get_target_categories, resolve_file_path
 from book_organizer.gemini_client import create_gemini_model
-from book_organizer.library_path_repair import path_is_in_book_roots
+from book_organizer.library_path_repair import path_is_inside
 
 # Logger
 from book_organizer.logger import logger
@@ -49,6 +49,7 @@ from book_organizer.toc_extractor import (
     sanitize_toc_result,
 )
 
+from . import internal_error, log_internal_error
 from .models import (
     AIExtractTOCRequest,
     AnalyzeRequest,
@@ -160,7 +161,7 @@ def identify_metadata_endpoint(request: IdentifyMetadataRequest) -> Dict[str, An
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error("identify metadata", e, format_ai_error(e))
 
 
 def _run_analysis_in_process(
@@ -343,10 +344,8 @@ def _run_analysis_in_process(
             }
         )
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        result_queue.put({"error": str(e)})
+        log_internal_error("book analysis worker", e)
+        result_queue.put({"error": format_ai_error(e)})
 
 
 @router.post("/api/analyze/cancel")
@@ -377,23 +376,9 @@ async def analyze_book(request: AnalyzeRequest) -> Dict[str, Any]:
     if not source_dir:
         raise HTTPException(status_code=400, detail="Source directory not configured")
 
-    file_path = os.path.join(source_dir, request.filename)
-    if not os.path.exists(file_path):
-        if target_dir:
-            target_path = os.path.join(target_dir, request.filename)
-            if os.path.exists(target_path):
-                file_path = target_path
-
-    if not os.path.exists(file_path):
-        if os.path.exists(request.filename):
-            file_path = request.filename
-
-    if not os.path.exists(file_path):
+    file_path = resolve_file_path(request.filename, config)
+    if not file_path:
         raise HTTPException(status_code=404, detail="File not found")
-    if not path_is_in_book_roots(file_path, config):
-        raise HTTPException(
-            status_code=403, detail="File is outside configured book directories"
-        )
 
     result_queue = Queue()
     process = Process(
@@ -520,18 +505,15 @@ def generate_enhanced_summary_endpoint(request: EnhancedSummaryRequest):
         return result
 
     except Exception as e:
-        traceback.print_exc()
         existing_summary = _get_existing_summary(request.filename)
-        logger.warning(
-            f"  ⚠️ 增强简介生成失败 ({e})，尝试恢复现有简介: {bool(existing_summary)}"
-        )
+        log_internal_error("generate enhanced summary", e)
 
         return {
             "summary": existing_summary or "",
             "title": "",
             "author": "",
             "category": "",
-            "warning": f"AI 增强简介生成失败 ({e})，"
+            "warning": f"{format_ai_error(e)} "
             + ("已保留原有数据" if existing_summary else "无法生成"),
         }
 
@@ -583,7 +565,7 @@ def batch_enhance_single_endpoint(request: BatchEnhanceSingleRequest):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error("batch enhance book", e, format_ai_error(e))
 
 
 @router.post("/api/batch_organize_single")
@@ -596,11 +578,13 @@ def batch_organize_single_endpoint(request: BatchOrganizeSingleRequest):
         if not source_dir:
             raise HTTPException(status_code=400, detail="源目录未配置")
 
-        file_path = os.path.join(source_dir, request.filename)
-        if not os.path.exists(file_path):
+        file_path = resolve_file_path(request.filename, config)
+        if not file_path:
             raise HTTPException(
                 status_code=404, detail=f"文件不存在: {request.filename}"
             )
+        if not path_is_inside(file_path, source_dir):
+            raise HTTPException(status_code=403, detail="文件不在入库源目录内")
 
         categories = get_target_categories(target_dir) if target_dir else []
 
@@ -649,7 +633,7 @@ def batch_organize_single_endpoint(request: BatchOrganizeSingleRequest):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error("batch organize book", e, format_ai_error(e))
 
 
 @router.post("/api/toc/extract")
@@ -668,8 +652,10 @@ def extract_toc_endpoint(request: ExtractTOCRequest) -> Dict[str, Any]:
             toc_db.save_toc(file_path, result)
 
         return result
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error("extract table of contents", e, "目录提取失败")
 
 
 @router.post("/api/toc/ai_extract")
@@ -686,17 +672,6 @@ def ai_extract_toc_endpoint(request: AIExtractTOCRequest) -> Dict[str, Any]:
 
         decoded_filename = unquote(request.filename).strip()
         file_path = resolve_file_path(decoded_filename, config)
-
-        if not file_path and config.get("target_dir"):
-            target_path = os.path.join(config.get("target_dir"), decoded_filename)
-            if os.path.exists(target_path):
-                file_path = target_path
-
-        if not file_path:
-            if config.get("source_dir"):
-                source_path = os.path.join(config.get("source_dir"), decoded_filename)
-                if os.path.exists(source_path):
-                    file_path = source_path
 
         if not file_path:
             raise HTTPException(
@@ -828,7 +803,7 @@ def ai_extract_toc_endpoint(request: AIExtractTOCRequest) -> Dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error("AI table of contents analysis", e, format_ai_error(e))
 
 
 @router.post("/api/analyze_full")

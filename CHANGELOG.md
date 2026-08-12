@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.8.4
+
 - Updated vulnerable pinned Python dependencies to patched compatible releases.
 - Pinned GitHub Actions to immutable commits and grouped coordinated Dependabot updates.
 - Added SQLite schema version tracking, sanitized AI errors, and frontend workflow contract checks.
@@ -9,6 +11,10 @@
 - Separated CI test dependencies from the desktop build toolchain and made builds use the selected Python environment.
 - Removed duplicate source-tree copies from the application bundle so ignored bytecode and local build paths cannot leak into releases.
 - Defaulted LiteLLM to its bundled model map so importing AI support does not wait on an unrelated network request.
+- Restricted the desktop API to trusted local hosts and browser origins.
+- Validated analysis, cover, PDF conversion, and database-repair paths at their shared boundaries.
+- Prevented synchronization requests from rewriting records outside the configured library or deleting the newest duplicate.
+- Removed interpolated inline frontend handlers and kept provider errors and stack traces out of API responses.
 
 ## 0.8.3
 

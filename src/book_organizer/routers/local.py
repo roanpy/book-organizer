@@ -23,6 +23,7 @@ from book_organizer.local_utils import (
     local_suggest_directories,
 )
 
+from . import log_internal_error
 from .models import (
     ISBNLookupRequest,
     LocalCategorizeRequest,
@@ -58,8 +59,8 @@ def isbn_lookup(request: ISBNLookupRequest) -> Dict[str, Any]:
         else:
             return {"success": False, "isbn": isbn, "message": "未找到相关图书信息"}
     except Exception as e:
-        print(f"Server ISBN lookup error: {e}")
-        return {"success": False, "message": str(e)}
+        log_internal_error("ISBN lookup", e)
+        return {"success": False, "message": "ISBN 查询失败"}
 
 
 @router.post("/api/local/categorize")
@@ -72,7 +73,8 @@ def local_categorize(request: LocalCategorizeRequest) -> Dict[str, Any]:
             "available_categories": list(CATEGORY_RULES.keys()),
         }
     except Exception as e:
-        return {"success": False, "message": str(e)}
+        log_internal_error("local categorization", e)
+        return {"success": False, "message": "本地分类失败"}
 
 
 @router.post("/api/local/find-duplicates")
@@ -93,7 +95,8 @@ def find_local_duplicates(request: LocalDuplicateRequest) -> Dict[str, Any]:
             "total_found": len(similar),
         }
     except Exception as e:
-        return {"success": False, "message": str(e)}
+        log_internal_error("local duplicate search", e)
+        return {"success": False, "message": "本地查重失败"}
 
 
 @router.post("/api/local/identify-metadata")
@@ -110,7 +113,8 @@ def local_identify_metadata_endpoint(request: LocalIdentifyRequest) -> Dict[str,
         result = local_identify_metadata(resolved_path)
         return result
     except Exception as e:
-        return {"success": False, "message": str(e)}
+        log_internal_error("local metadata identification", e)
+        return {"success": False, "message": "本地识别失败"}
 
 
 @router.post("/api/local/suggest-directories")
@@ -129,4 +133,5 @@ def local_suggest_directories_endpoint(
         )
         return {"success": True, "suggestions": suggestions}
     except Exception as e:
-        return {"success": False, "message": str(e)}
+        log_internal_error("local directory suggestion", e)
+        return {"success": False, "message": "目录建议生成失败"}

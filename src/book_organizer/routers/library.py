@@ -21,6 +21,7 @@ from book_organizer.file_ops import (
     get_cover_image,
     get_target_categories,
     parse_filename_to_dict,
+    resolve_file_path,
 )
 from book_organizer.library_path_repair import (
     path_is_inside,
@@ -33,6 +34,7 @@ from book_organizer.summary_utils import (
     sync_embedded_summary_to_db,
 )
 
+from . import internal_error, log_internal_error
 from .models import (
     BrowseRequest,
     FindSimilarRequest,
@@ -84,7 +86,7 @@ def get_books() -> Dict[str, List[Dict[str, Any]]]:
                 }
             )
     except Exception as e:
-        print(f"Error scanning books: {e}")
+        log_internal_error("scan source books", e)
         return {"books": []}
 
     return {"books": books}
@@ -114,7 +116,7 @@ def browse_directory(request: BrowseRequest) -> Dict[str, Any]:
         items.sort(key=lambda x: x["name"])
         return {"current_path": start_path, "items": items}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error("browse directory", e, "目录读取失败")
 
 
 @router.put("/api/library/book/rating")
@@ -128,8 +130,7 @@ def update_rating(request: UpdateRatingRequest):
             return {"success": False, "message": "Rating update failed"}
         return {"success": True, "rating": request.rating}
     except Exception as e:
-        print(f"Error updating rating: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error("update rating", e, "评分保存失败")
 
 
 @router.get("/api/library")
@@ -228,21 +229,8 @@ def get_library():
 @router.get("/api/cover")
 def get_cover(path: str):
     config = load_config()
-    target_dir = config.get("target_dir")
-    source_dir = config.get("source_dir")
-
-    final_path = path
-    if not os.path.exists(final_path):
-        if target_dir:
-            p = os.path.join(target_dir, path)
-            if os.path.exists(p):
-                final_path = p
-        if not os.path.exists(final_path) and source_dir:
-            p = os.path.join(source_dir, path)
-            if os.path.exists(p):
-                final_path = p
-
-    if not os.path.exists(final_path):
+    final_path = resolve_file_path(path, config)
+    if not final_path:
         return Response(status_code=404)
 
     img_data = get_cover_image(final_path)
@@ -359,22 +347,8 @@ def get_library_book_details(path: str, skip_file_read: bool = False):
 @router.get("/api/cover/{filename:path}")
 async def get_book_cover(filename: str) -> Response:
     config = load_config()
-    source_dir = config.get("source_dir")
-    target_dir = config.get("target_dir")
-
-    file_path = os.path.join(source_dir, filename) if source_dir else None
-
-    if not file_path or not os.path.exists(file_path):
-        if target_dir:
-            target_path = os.path.join(target_dir, filename)
-            if os.path.exists(target_path):
-                file_path = target_path
-
-    if not file_path or not os.path.exists(file_path):
-        if os.path.exists(filename):
-            file_path = filename
-
-    if not file_path or not os.path.exists(file_path):
+    file_path = resolve_file_path(filename, config)
+    if not file_path:
         return Response(status_code=404)
 
     img_data = await asyncio.to_thread(get_cover_image, file_path)

@@ -7,6 +7,8 @@ from fastapi import APIRouter
 
 from book_organizer.database import get_db
 
+from . import log_internal_error
+
 router = APIRouter(tags=["records"])
 
 
@@ -71,8 +73,8 @@ def get_transfer_records(
             "total_pages": (total + page_size - 1) // page_size,
         }
     except Exception as e:
-        print(f"Error fetching records: {e}")
-        return {"records": [], "total": 0, "error": str(e)}
+        log_internal_error("load transfer records", e)
+        return {"records": [], "total": 0, "error": "记录读取失败"}
 
 
 @router.get("/api/records/summaries")
@@ -134,4 +136,5 @@ def get_summary_records(
             "total_pages": (total + page_size - 1) // page_size,
         }
     except Exception as e:
-        return {"records": [], "total": 0, "error": str(e)}
+        log_internal_error("load summary records", e)
+        return {"records": [], "total": 0, "error": "记录读取失败"}

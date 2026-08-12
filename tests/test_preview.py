@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from server import app
 
-client = TestClient(app)
+client = TestClient(app, base_url="http://127.0.0.1:18000")
 
 
 def _patch_book_roots(

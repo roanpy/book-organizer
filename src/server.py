@@ -17,8 +17,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 # 使用 spawn 模式，避免 fork 导致子进程继承父进程的文件锁
 try:
@@ -122,6 +123,21 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 LOCAL_HOST = "127.0.0.1"
+LOCAL_WEB_HOSTS = {LOCAL_HOST, "localhost"}
+
+
+@app.middleware("http")
+async def reject_cross_origin_api_requests(request, call_next):
+    """Keep browser requests to the local API on the desktop app origin."""
+    if request.url.path.startswith("/api/"):
+        origin = request.headers.get("origin")
+        if origin:
+            from urllib.parse import urlsplit
+
+            parsed = urlsplit(origin)
+            if parsed.scheme != "http" or parsed.hostname not in LOCAL_WEB_HOSTS:
+                return JSONResponse(status_code=403, content={"detail": "请求来源无效"})
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -172,6 +188,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=sorted(LOCAL_WEB_HOSTS))
 
 # 挂载路由
 app.include_router(config_router.router)

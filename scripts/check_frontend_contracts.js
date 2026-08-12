@@ -8,6 +8,7 @@ const api = read('static/js/modules/api.js');
 const ui = read('static/js/modules/ui.js');
 const settings = read('static/js/modules/settings.js');
 const sync = read('static/js/modules/sync.js');
+const customProvider = read('static/js/modules/settings/custom-provider.js');
 
 const errorHelpers = state.slice(0, state.indexOf('// HTML 转义工具'));
 const context = { window: {}, AbortController, fetch: () => {} };
@@ -30,5 +31,7 @@ assert.match(settings, /cfg\.book_extensions[\s\S]*saveConfigPayload\(cfg\)/);
 assert.match(api, /function saveConfigPayload\(payload\)[\s\S]*\/config/);
 assert.match(sync, /\/db\/sync\/analyze/);
 assert.match(sync, /renderDatabaseHealth\(data\.health\)/);
+assert.doesNotMatch(ui, /onclick="[^"\n]*\$\{/);
+assert.doesNotMatch(customProvider, /onclick="[^"\n]*\$\{/);
 
 console.log('Frontend contract checks passed');
