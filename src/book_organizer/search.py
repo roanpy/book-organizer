@@ -54,5 +54,5 @@ def search_book_online(query: str) -> str:
             )
         return context
     except Exception as e:
-        print(f"  ⚠️ 在线搜索时发生错误: {e}")
+        print(f"  ⚠️ 在线搜索失败 ({type(e).__name__})")
         return "在线搜索时发生错误。"

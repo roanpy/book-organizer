@@ -311,7 +311,7 @@ def extract_metadata(file_path: str) -> Dict[str, Any]:
                                 break
 
     except Exception as e:
-        print(f"  ⚠️ 读取元数据失败 [{os.path.basename(file_path)}]: {e}")
+        print(f"  ⚠️ 读取元数据失败 ({type(e).__name__})")
 
     return metadata
 
@@ -347,7 +347,7 @@ def write_epub_metadata(file_path: str, metadata: Dict[str, Any]) -> bool:
     try:
         shutil.copy2(file_path, backup_path)
     except Exception as e:
-        print(f"  ⚠️ 无法创建备份文件: {e}")
+        print(f"  ⚠️ 无法创建备份文件 ({type(e).__name__})")
         return False
 
     try:
@@ -494,7 +494,7 @@ def write_epub_metadata(file_path: str, metadata: Dict[str, Any]) -> bool:
         return True
 
     except Exception as e:
-        print(f"  ⚠️ 更新 EPUB 元数据失败: {e}")
+        print(f"  ⚠️ 更新 EPUB 元数据失败 ({type(e).__name__})")
         try:
             if os.path.exists(backup_path):
                 shutil.copy2(backup_path, file_path)
@@ -526,7 +526,7 @@ def write_pdf_metadata(file_path: str, metadata: Dict[str, Any]) -> bool:
     try:
         shutil.copy2(file_path, backup_path)
     except Exception as e:
-        print(f"  ⚠️ 无法创建备份文件: {e}")
+        print(f"  ⚠️ 无法创建备份文件 ({type(e).__name__})")
         return False
 
     try:
@@ -601,7 +601,7 @@ def write_pdf_metadata(file_path: str, metadata: Dict[str, Any]) -> bool:
         return True
 
     except Exception as e:
-        print(f"  ⚠️ 更新 PDF 元数据失败: {e}")
+        print(f"  ⚠️ 更新 PDF 元数据失败 ({type(e).__name__})")
         try:
             if os.path.exists(backup_path):
                 shutil.copy2(backup_path, file_path)

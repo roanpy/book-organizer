@@ -26,7 +26,11 @@ from ..file_ops import resolve_file_path
 from ..logger import logger
 
 # Sub-module imports within the ai_engines package
-from .dispatcher import _call_ai_engine, _get_engine_config, dispatch_ai_request
+from .dispatcher import (
+    _call_ai_engine,
+    _get_engine_config,
+    dispatch_ai_request,
+)
 from .offline_fallback import (
     offline_batch_enhance,
     offline_batch_enhance_fallback,
@@ -519,7 +523,7 @@ def identify_book_metadata(
 
     except Exception as e:
         # AI identification failed, auto-degrade to local identification
-        logger.warning(f"  ⚠️ AI 识别失败 ({e})，自动降级到本地识别...")
+        logger.warning("AI 识别失败 (%s)，自动降级到本地识别", type(e).__name__)
         return offline_identify_with_warning(filename, user_metadata, metadata, e)
 
 
@@ -583,7 +587,7 @@ def optimize_additional_rules_with_ai(
             return result.get("optimized_rules", [])
         return []
     except Exception as e:
-        print(f"❌ AI优化规则失败: {e}")
+        print(f"❌ AI 优化规则失败 ({type(e).__name__})")
         return []
 
 
@@ -789,7 +793,7 @@ def get_batch_enhance_analysis(
 
     except Exception as e:
         # AI call failed, auto-degrade to offline logic
-        logger.warning(f"  ⚠️ 批量增强 AI 失败 ({e})，自动降级到离线模式...")
+        logger.warning("批量增强 AI 失败 (%s)，自动降级到离线模式", type(e).__name__)
         return offline_batch_enhance_fallback(filename, internal_metadata, e)
 
 
@@ -910,7 +914,7 @@ def get_batch_organize_analysis(
             if search_result:
                 online_search_context = f"\n**在线搜索结果**:\n{search_result}"
         except Exception as e:
-            print(f"联网搜索失败: {e}")
+            print(f"联网搜索失败 ({type(e).__name__})")
 
     # Build enhanced summary task description (optional)
     enhanced_task = ""
@@ -991,7 +995,7 @@ def get_batch_organize_analysis(
 
     except Exception as e:
         # AI call failed, auto-degrade to offline logic
-        logger.warning(f"  ⚠️ 入库批量 AI 失败 ({e})，自动降级到离线模式...")
+        logger.warning("入库批量 AI 失败 (%s)，自动降级到离线模式", type(e).__name__)
         return offline_batch_organize_fallback(
             filename, config, internal_metadata, enable_enhanced_summary, e
         )

@@ -2,6 +2,8 @@ import json
 import os
 import sqlite3
 
+import pytest
+
 from book_organizer import config as config_module
 from book_organizer.database import UNIFIED_DB_NAME
 from book_organizer.routers import config as config_router
@@ -148,6 +150,51 @@ def test_save_config_syncs_secrets_only_when_enabled(monkeypatch, tmp_path):
     assert "api_key" not in prefs["gemini"]
     assert secrets["providers"]["gemini"]["api_key"] == "secret-gemini"
     assert secrets["custom_providers"]["demo"]["api_key"] == "secret-custom"
+
+
+@pytest.mark.parametrize("filename", ["preferences.json", "ai_config.json", "history.json"])
+def test_sync_writes_reject_linked_files(monkeypatch, tmp_path, filename):
+    local_dir = tmp_path / "local"
+    sync_dir = tmp_path / "sync"
+    local_dir.mkdir()
+    sync_dir.mkdir()
+    outside = tmp_path / "outside.json"
+    outside.write_text('{"keep": true}', encoding="utf-8")
+    (sync_dir / filename).symlink_to(outside)
+
+    monkeypatch.setattr(config_module, "APP_DIR", str(local_dir))
+    monkeypatch.setattr(
+        config_module,
+        "CONFIG_FILE",
+        str(local_dir / "book_organizer_config.json"),
+    )
+    monkeypatch.setattr(config_module, "HISTORY_FILE", str(local_dir / "history.json"))
+
+    config = {
+        "sync": {"enabled": True, "path": str(sync_dir)},
+        "ai_config": {"gemini": {"model_name": "test"}},
+    }
+    if filename == "history.json":
+        config_module.save_config(config, sync_cloud=False)
+        config_module.save_history({"book.epub": {"status": "processed"}})
+    else:
+        with pytest.raises(ValueError):
+            config_module.save_synced_config_files(config, str(sync_dir))
+
+    assert outside.read_text(encoding="utf-8") == '{"keep": true}'
+
+
+def test_sync_writes_reject_hard_linked_file(tmp_path):
+    sync_dir = tmp_path / "sync"
+    sync_dir.mkdir()
+    outside = tmp_path / "outside.json"
+    outside.write_text('{"keep": true}', encoding="utf-8")
+    os.link(outside, sync_dir / "preferences.json")
+
+    with pytest.raises(ValueError):
+        config_module.resolve_regular_file_path(sync_dir, "preferences.json")
+
+    assert outside.read_text(encoding="utf-8") == '{"keep": true}'
 
 
 def test_synced_preferences_drop_legacy_google_drive_config():
@@ -471,3 +518,58 @@ def test_sync_validate_cleans_cloud_empty_sidecars(monkeypatch, tmp_path):
     assert result["database"]["compare"]["reason"] == "same-logical-content"
     assert not cloud_wal.exists()
     assert not cloud_shm.exists()
+
+
+def test_sync_validate_rejects_linked_cloud_database(monkeypatch, tmp_path):
+    local_dir = tmp_path / "local"
+    sync_dir = tmp_path / "sync"
+    local_dir.mkdir()
+    sync_dir.mkdir()
+    outside = tmp_path / "outside.db"
+    outside.write_bytes(b"keep")
+    (sync_dir / UNIFIED_DB_NAME).symlink_to(outside)
+
+    monkeypatch.setattr(
+        config_router,
+        "load_config",
+        lambda merge_cloud=True: {"data_dir": str(local_dir)},
+    )
+
+    result = config_router.validate_sync_config(
+        config_router.SyncValidateRequest(path=str(sync_dir))
+    )
+
+    assert result == {
+        "success": False,
+        "message": "同步目录包含不安全的链接文件",
+    }
+    assert outside.read_bytes() == b"keep"
+
+
+def test_database_replacement_closes_local_connection_before_copy(
+    monkeypatch, tmp_path
+):
+    source = tmp_path / "cloud.db"
+    destination = tmp_path / "local.db"
+    source.write_bytes(b"cloud")
+    destination.write_bytes(b"local")
+    calls = []
+
+    monkeypatch.setattr(config_router, "_valid_database", lambda _path: True)
+    monkeypatch.setattr(
+        config_router, "_backup_database", lambda _path: calls.append("backup")
+    )
+    monkeypatch.setattr(
+        config_router, "reset_db_instances", lambda: calls.append("close")
+    )
+    monkeypatch.setattr(
+        config_router,
+        "_copy_database_file",
+        lambda _source, _destination: calls.append("copy"),
+    )
+
+    config_router._replace_database_file(
+        str(source), str(destination), close_local_connection=True
+    )
+
+    assert calls == ["close", "backup", "copy"]

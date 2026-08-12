@@ -1,15 +1,21 @@
-import json
 import logging
 import os
 import shutil
 import sqlite3
+import tempfile
 import threading
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-from .config import load_config
+from .config import (
+    _open_regular_file_fd,
+    _read_json_file,
+    _write_json_file,
+    load_config,
+    resolve_regular_file_path,
+)
 from .database import get_db
 from .file_ops import get_configured_book_extensions
 from .library_path_repair import inspect_database_connection, path_is_inside
@@ -76,39 +82,75 @@ class DBSyncManager:
         db_path = self.db.db_path
         if os.path.exists(db_path):
             # [Backup Fix] Use rolling backup (single file) to prevent disk usage bloat
-            bak_path = db_path + ".backup"
-
-            # Remove previous backup if exists to ensure clean state for SQLite API
-            if os.path.exists(bak_path):
-                try:
-                    os.remove(bak_path)
-                except OSError:
-                    pass
             try:
+                db_path = resolve_regular_file_path(
+                    os.path.dirname(db_path), os.path.basename(db_path)
+                )
+                bak_path = resolve_regular_file_path(
+                    os.path.dirname(db_path), os.path.basename(db_path) + ".backup"
+                )
+            except ValueError:
+                logger.error("Skipped unsafe database backup file")
+                return None
+
+            temp_path = ""
+            try:
+                fd, temp_path = tempfile.mkstemp(
+                    prefix=".book-organizer-backup-", dir=os.path.dirname(db_path)
+                )
+                os.close(fd)
                 # 为了安全起见，在 WAL 模式下使用 SQLite 在线备份 API
                 # EnhancedSummariesDB -> KnowledgeCoreDB -> _get_conn
                 # 我们需要访问底层的核心 DB 实例
                 core_db = self.db._db
 
                 with core_db._get_conn() as source_conn:
-                    dest_conn = sqlite3.connect(bak_path)
+                    dest_conn = sqlite3.connect(temp_path)
                     try:
                         source_conn.backup(dest_conn)
                     finally:
                         dest_conn.close()
 
-                logger.info(f"Database backed up successfully to {bak_path}")
+                os.replace(temp_path, bak_path)
+                temp_path = ""
+                logger.info("Database backup completed")
                 return bak_path
             except Exception as e:
                 logger.error(
-                    f"Backup failed using sqlite3 API, falling back to shutil: {e}"
+                    "SQLite backup failed (%s); falling back to file copy",
+                    type(e).__name__,
                 )
-                # 如果 API 失败（例如由于严格锁定），降级使用 copy
-                # 虽然 copy 可能不那么安全，但作为最后手段
-                # 如果备份失败，同步可能在没有备份的情况下继续？
-                # 让我们尝试 shutil 作为最后的手段，但记录警告
-                shutil.copy2(db_path, bak_path)
-                return bak_path
+                try:
+                    if not temp_path:
+                        fd, temp_path = tempfile.mkstemp(
+                            prefix=".book-organizer-backup-",
+                            dir=os.path.dirname(db_path),
+                        )
+                        os.close(fd)
+                    source_fd = _open_regular_file_fd(db_path)
+                    try:
+                        with os.fdopen(source_fd, "rb") as source_file, open(
+                            temp_path, "wb"
+                        ) as destination_file:
+                            source_fd = -1
+                            shutil.copyfileobj(source_file, destination_file)
+                            destination_file.flush()
+                            os.fsync(destination_file.fileno())
+                    finally:
+                        if source_fd >= 0:
+                            os.close(source_fd)
+                    os.replace(temp_path, bak_path)
+                    temp_path = ""
+                    return bak_path
+                except Exception as fallback_error:
+                    logger.error(
+                        "Database backup failed (%s)",
+                        type(fallback_error).__name__,
+                    )
+                    return None
+            finally:
+                if temp_path and os.path.exists(temp_path):
+                    os.remove(temp_path)
         return None
 
     def analyze(self) -> Dict[str, Any]:
@@ -345,6 +387,8 @@ class DBSyncManager:
         self._refresh_db_connection()
 
         bak_file = self.backup_db()
+        if not bak_file:
+            return {"success": False, "message": "无法创建安全备份，已取消处理"}
         updates = 0
         deletes = 0
         errors = 0
@@ -463,7 +507,7 @@ class DBSyncManager:
         return {
             "success": True,
             "message": f"Sync Completed. Updates: {updates}, Deletes: {deletes}, Errors: {errors}",
-            "backup_path": bak_file,
+            "backup_created": bool(bak_file),
         }
 
     def analyze_duplicates(self) -> Dict[str, Any]:
@@ -530,7 +574,7 @@ class DBSyncManager:
                         db_map[p]["has_summary"] = has_summ
                         db_map[p]["toc_count"] = 0  # Default
             except Exception as e:
-                logger.error(f"Error fetching summaries: {e}")
+                logger.error("Error fetching summaries (%s)", type(e).__name__)
 
             # Fetch TOCs
             try:
@@ -544,7 +588,7 @@ class DBSyncManager:
                             db_map[p] = {"has_summary": False}
                         db_map[p]["toc_count"] = row[1] or 0
             except Exception as e:
-                logger.error(f"Error fetching TOCs: {e}")
+                logger.error("Error fetching TOCs (%s)", type(e).__name__)
 
         # 3. Filter and Split based on Ignores
         active_groups = []
@@ -598,14 +642,20 @@ class DBSyncManager:
 
     def _get_ignore_file(self):
         # 始终使用本地文件作为操作对象，确保单一数据源
-        return os.path.join(os.path.dirname(self.db.db_path), "dedup_ignores.json")
+        return resolve_regular_file_path(
+            os.path.dirname(self.db.db_path), "dedup_ignores.json"
+        )
 
     def _get_cloud_ignore_file(self):
         config = load_config()
         sync_config = config.get("sync", {})
         if sync_config.get("enabled") and sync_config.get("path"):
-            sync_path = os.path.expanduser(sync_config["path"])  # 支持 ~ 路径
-            return os.path.join(sync_path, "dedup_ignores.json")
+            try:
+                return resolve_regular_file_path(
+                    sync_config["path"], "dedup_ignores.json"
+                )
+            except ValueError:
+                logger.warning("Skipped unsafe synchronized ignore file")
         return None
 
     def _sync_ignores_from_cloud_if_newer(self, local_path, cloud_path):
@@ -625,12 +675,13 @@ class DBSyncManager:
                     should_pull = True
 
             if should_pull:
-                shutil.copy2(cloud_path, local_path)
-                logger.info(
-                    f"Synced dedup_ignores from cloud: {cloud_path} -> {local_path}"
-                )
+                rules = _read_json_file(cloud_path)
+                if not isinstance(rules, list):
+                    raise ValueError("invalid ignore rules")
+                _write_json_file(local_path, rules)
+                logger.info("Synchronized duplicate-ignore rules from cloud")
         except Exception as e:
-            logger.error(f"Error syncing ignores from cloud: {e}")
+            logger.error("Failed to sync ignore rules (%s)", type(e).__name__)
 
     def _load_ignores(self) -> List[Dict]:
         local_p = self._get_ignore_file()
@@ -644,8 +695,7 @@ class DBSyncManager:
         if not os.path.exists(local_p):
             return []
         try:
-            with open(local_p, "r", encoding="utf-8") as f:
-                rules = json.load(f)
+            rules = _read_json_file(local_p)
 
             # 3. 迁移：将旧的绝对路径转换为相对路径
             migrated = False
@@ -667,24 +717,23 @@ class DBSyncManager:
 
             return rules
         except Exception as e:
-            logger.error(f"Failed to load ignores: {e}")
+            logger.error("Failed to load ignore rules (%s)", type(e).__name__)
             return []
 
     def _save_ignores(self, rules: List[Dict]):
         local_p = self._get_ignore_file()
         try:
             # 1. 保存到本地
-            with open(local_p, "w", encoding="utf-8") as f:
-                json.dump(rules, f, ensure_ascii=False, indent=2)
+            _write_json_file(local_p, rules)
 
             # 2. 如果已开启同步，立即推送到云端
             cloud_p = self._get_cloud_ignore_file()
             if cloud_p and os.path.exists(os.path.dirname(cloud_p)):
-                shutil.copy2(local_p, cloud_p)
-                logger.info(f"Pushed dedup_ignores to cloud: {local_p} -> {cloud_p}")
+                _write_json_file(cloud_p, rules)
+                logger.info("Synchronized duplicate-ignore rules to cloud")
 
         except Exception as e:
-            logger.error(f"Failed to save ignores: {e}")
+            logger.error("Failed to save ignore rules (%s)", type(e).__name__)
 
     def ignore_group(self, paths: List[str]) -> Dict[str, Any]:
         """Ignore a specific combination of duplicate files."""

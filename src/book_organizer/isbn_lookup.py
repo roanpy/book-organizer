@@ -157,7 +157,7 @@ def _extract_isbn_from_epub(file_path: str) -> Optional[str]:
     except ImportError:
         pass
     except Exception as e:
-        print(f"Warning: Failed to extract ISBN from EPUB: {e}")
+        print(f"Warning: Failed to extract ISBN from EPUB ({type(e).__name__})")
 
     return None
 
@@ -194,7 +194,7 @@ def _extract_isbn_from_pdf(file_path: str) -> Optional[str]:
     except ImportError:
         pass
     except Exception as e:
-        print(f"Warning: Failed to extract ISBN from PDF: {e}")
+        print(f"Warning: Failed to extract ISBN from PDF ({type(e).__name__})")
 
     return None
 
@@ -245,7 +245,7 @@ def lookup_isbn_openlibrary(isbn: str) -> Optional[Dict[str, Any]]:
         }
 
     except Exception as e:
-        print(f"Open Library lookup failed: {e}")
+        print(f"Open Library lookup failed ({type(e).__name__})")
         return None
 
 
@@ -292,7 +292,7 @@ def lookup_isbn_google(
         }
 
     except Exception as e:
-        print(f"Google Books lookup failed: {e}")
+        print(f"Google Books lookup failed ({type(e).__name__})")
         return None
 
 
@@ -400,7 +400,7 @@ def lookup_via_calibre(
         return metadata
 
     except Exception as e:
-        print(f"Calibre lookup error: {e}")
+        print(f"Calibre lookup failed ({type(e).__name__})")
         return None
 
 
@@ -455,7 +455,7 @@ def lookup_book_by_title(title: str) -> Optional[Dict[str, Any]]:
         }
 
     except Exception as e:
-        print(f"Open Library title search failed: {e}")
+        print(f"Open Library title search failed ({type(e).__name__})")
         return None
 
 
@@ -525,6 +525,6 @@ def auto_lookup_isbn(
     except ImportError:
         pass
     except Exception as e:
-        print(f"Fallback title search failed: {e}")
+        print(f"Fallback title search failed ({type(e).__name__})")
 
     return None

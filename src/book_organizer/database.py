@@ -12,6 +12,7 @@ import logging
 import os
 import shutil
 import sqlite3
+import tempfile
 import threading
 from contextlib import contextmanager
 
@@ -50,7 +51,7 @@ class KnowledgeCoreDB:
                     # 默认目录
                     base_dir = os.path.join(os.path.expanduser("~"), ".book_organizer")
             except Exception as e:
-                print(f"Error loading config for DB: {e}")
+                print(f"Error loading database config ({type(e).__name__})")
                 base_dir = os.path.join(os.path.expanduser("~"), ".book_organizer")
         else:
             base_dir = db_dir
@@ -82,7 +83,7 @@ class KnowledgeCoreDB:
         conn.execute("PRAGMA journal_mode = WAL")  # 提高并发读写性能
         conn.row_factory = sqlite3.Row
         self._global_conn = conn
-        logger.info(f"✓ Database connected: {self.db_path}")
+        logger.info("Database connected")
 
     def reset_connection(self):
         """Close the cached SQLite connection so the next operation reopens it."""
@@ -91,9 +92,7 @@ class KnowledgeCoreDB:
                 try:
                     self._global_conn.close()
                 except sqlite3.Error:
-                    logger.warning(
-                        "Failed to close stale SQLite connection", exc_info=True
-                    )
+                    logger.warning("Failed to close stale SQLite connection")
                 finally:
                     self._global_conn = None
 
@@ -123,7 +122,7 @@ class KnowledgeCoreDB:
                 try:
                     conn.rollback()
                 except sqlite3.Error:
-                    logger.warning("SQLite rollback failed", exc_info=True)
+                    logger.warning("SQLite rollback failed")
                 if isinstance(e, sqlite3.OperationalError) and "disk I/O error" in str(
                     e
                 ):
@@ -131,8 +130,7 @@ class KnowledgeCoreDB:
                         conn.close()
                     except sqlite3.Error:
                         logger.warning(
-                            "Failed to close SQLite connection after disk I/O error",
-                            exc_info=True,
+                            "Failed to close SQLite connection after disk I/O error"
                         )
                     self._global_conn = None
                 raise
@@ -213,7 +211,7 @@ class KnowledgeCoreDB:
                         )
                     """)
                 except Exception as e:
-                    logger.warning(f"FTS5 not supported on this SQLite version: {e}")
+                    logger.warning("FTS5 unavailable (%s)", type(e).__name__)
 
                 # 兼容旧表 (用于平滑迁移,应用层仍可能读写这些表直到完全重构)
                 self._init_legacy_tables(cursor)
@@ -227,7 +225,7 @@ class KnowledgeCoreDB:
                     conn.execute(f"PRAGMA user_version = {DB_SCHEMA_VERSION}")
 
         except Exception as e:
-            logger.error(f"Failed to init KnowledgeDB: {e}")
+            logger.error("Failed to initialize database (%s)", type(e).__name__)
 
     def _migrate_books_to_path_identity(self, conn, cursor):
         """Use portable file paths, not basenames, as the book identity."""
@@ -379,7 +377,7 @@ class KnowledgeCoreDB:
                     "ALTER TABLE enhanced_summaries ADD COLUMN rating INTEGER DEFAULT NULL"
                 )
         except Exception as e:
-            logger.warning(f"Failed to add rating column: {e}")
+            logger.warning("Failed to add rating column (%s)", type(e).__name__)
 
     def update_book_rating(self, filename, rating, file_path=None):
         """更新图书评分 (1-5)，如果记录不存在则创建"""
@@ -417,12 +415,10 @@ class KnowledgeCoreDB:
                     if not file_path:
                         # 如果没有提供路径，无法插入（因为 file_path 是 UNIQUE NOT NULL）
                         # 尝试只用 filename 作为占位符，但这很危险
-                        logger.warning(
-                            f"Cannot rate new book {filename} without file_path"
-                        )
+                        logger.warning("Cannot rate a new book without file_path")
                         return False
 
-                    logger.info(f"Inserting new record for rated book: {filename}")
+                    logger.info("Inserting a new rated-book record")
                     # 插入新记录，summary_json 为空对象
                     cursor.execute(
                         """
@@ -435,7 +431,7 @@ class KnowledgeCoreDB:
                 conn.commit()
                 return True
         except Exception as e:
-            logger.error(f"Failed to update rating for {filename}: {e}")
+            logger.error("Failed to update rating (%s)", type(e).__name__)
             return False
 
     def get_book_rating(self, filename):
@@ -466,7 +462,7 @@ class KnowledgeCoreDB:
                     return row["rating"]
                 return None
         except Exception as e:
-            logger.error(f"Failed to get rating for {filename}: {e}")
+            logger.error("Failed to get rating (%s)", type(e).__name__)
             return None
 
     def _migrate_legacy_data(self, conn):
@@ -683,7 +679,7 @@ class KnowledgeCoreDB:
                 conn.commit()
             return True
         except Exception as e:
-            logger.error(f"Failed to save summary: {e}")
+            logger.error("Failed to save summary (%s)", type(e).__name__)
             return False
 
     def get_summary(self, file_path):
@@ -818,13 +814,15 @@ class KnowledgeCoreDB:
                 conn.commit()
 
             logger.info(
-                f"Deleted book records for '{basename}': "
-                f"summaries={stats['summaries']}, tocs={stats['tocs']}, books={stats['books']}"
+                "Deleted book records: summaries=%s, tocs=%s, books=%s",
+                stats["summaries"],
+                stats["tocs"],
+                stats["books"],
             )
             return stats
 
         except Exception as e:
-            logger.error(f"Failed to delete book records for {filename}: {e}")
+            logger.error("Failed to delete book records (%s)", type(e).__name__)
             return stats
 
     def get_all_summaries(self):
@@ -917,7 +915,7 @@ class KnowledgeCoreDB:
                 conn.commit()
             return True
         except Exception as e:
-            logger.error(f"Failed to save TOC: {e}")
+            logger.error("Failed to save TOC (%s)", type(e).__name__)
             return False
 
     def get_toc(self, file_path: str) -> dict:
@@ -1067,7 +1065,7 @@ class KnowledgeCoreDB:
                 conn.commit()
             return True
         except Exception as e:
-            logger.error(f"Failed to save transfer log: {e}")
+            logger.error("Failed to save transfer log (%s)", type(e).__name__)
             return False
 
     def get_transfer_logs(self, limit: int = 50, days: int = None) -> list:
@@ -1196,13 +1194,23 @@ def move_database(new_dir):
     if not os.path.exists(current_path):
         return False, "原数据库文件不存在"
 
-    target_path = os.path.join(new_dir, UNIFIED_DB_NAME)
+    from .config import resolve_regular_file_path
+
+    os.makedirs(new_dir, exist_ok=True)
+    try:
+        target_path = resolve_regular_file_path(new_dir, UNIFIED_DB_NAME)
+    except ValueError:
+        return False, "目标目录中的数据库文件不安全"
     if os.path.abspath(current_path) == os.path.abspath(target_path):
         return True, "路径相同,无需移动"
 
+    temp_path = ""
     try:
-        os.makedirs(new_dir, exist_ok=True)
-        shutil.copy2(current_path, target_path)
+        fd, temp_path = tempfile.mkstemp(prefix=".book-organizer-db-", dir=new_dir)
+        os.close(fd)
+        shutil.copy2(current_path, temp_path)
+        os.replace(temp_path, target_path)
+        temp_path = ""
         if os.path.exists(target_path) and os.path.getsize(target_path) > 0:
             # 重置数据库单例，使其在下次访问时使用新路径
             _db_instance = None
@@ -1217,7 +1225,11 @@ def move_database(new_dir):
         else:
             return False, "复制失败"
     except Exception as e:
-        return False, str(e)
+        logger.error("Database copy failed (%s)", type(e).__name__)
+        return False, "数据库复制失败，请查看应用日志"
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            os.remove(temp_path)
 
 
 # 全局实例
@@ -1259,7 +1271,7 @@ def close_db():
                 _db_instance._db._global_conn.close()
                 logger.info("Database connection closed.")
             except Exception as e:
-                logger.warning(f"Error closing database: {e}")
+                logger.warning("Error closing database (%s)", type(e).__name__)
             _db_instance._db._global_conn = None
 
     # Reset core instance

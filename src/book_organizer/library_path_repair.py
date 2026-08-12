@@ -287,13 +287,15 @@ def start_auto_library_path_repair(delay_seconds: float = 4.0) -> bool:
             if result.get("ok"):
                 updates = result.get("stats", {}).get("updates", 0)
                 if updates:
-                    logger.info("[Startup] repaired stale library paths: %s", result)
+                    logger.info("[Startup] repaired %s stale library paths", updates)
                     print(f"[Startup] Repaired stale library paths: {updates}")
             else:
-                logger.debug("[Startup] skipped path repair: %s", result)
+                logger.debug("[Startup] skipped library path repair")
         except Exception as exc:
-            logger.warning("[Startup] library path repair skipped: %s", exc)
-            print(f"[Startup] Library path repair skipped: {exc}")
+            logger.warning(
+                "[Startup] library path repair skipped (%s)", type(exc).__name__
+            )
+            print(f"[Startup] Library path repair skipped ({type(exc).__name__})")
 
     thread = threading.Thread(target=worker, name="library-path-repair", daemon=True)
     thread.start()

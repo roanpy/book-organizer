@@ -13,7 +13,8 @@ import re
 import shutil
 from pathlib import Path
 
-from .library_path_repair import path_is_in_book_roots, path_is_inside
+from .file_ops import resolve_file_path
+from .library_path_repair import path_is_inside
 
 
 def _get_deps():
@@ -145,7 +146,7 @@ def write_transfer_log(
             original_filename, new_filename, destination_category, metadata, summary
         )
     except Exception as e:
-        print(f"  ⚠️ 写入转移记录失败: {e}")
+        print(f"  ⚠️ 写入转移记录失败 ({type(e).__name__})")
 
 
 def rename_and_move_book(
@@ -174,31 +175,14 @@ def rename_and_move_book(
 
     config = load_config()
     target_dir = config.get("target_dir")
-    source_dir = config.get("source_dir")
     if not target_dir:
         return {"success": False, "message": "目标目录未配置"}
 
-    # 路径解析增强：支持从 Target 目 (Library) 移动
-    source_path = os.path.join(source_dir, original_filename) if source_dir else None
-
-    if not source_path or not os.path.exists(source_path):
-        if target_dir:
-            # 尝试在 target_dir 查找 (Library Mode)
-            target_source_path = os.path.join(target_dir, original_filename)
-            if os.path.exists(target_source_path):
-                source_path = target_source_path
-
-    if not source_path or not os.path.exists(source_path):
-        # 尝试绝对路径
-        if os.path.exists(original_filename):
-            source_path = original_filename
-
-    if not source_path or not os.path.exists(source_path):
+    source_path = resolve_file_path(original_filename, config)
+    if not source_path:
         return {"success": False, "message": "源文件不存在"}
-    if not path_is_in_book_roots(source_path, config):
-        return {"success": False, "message": "源文件不在已配置的图书目录内"}
 
-    ext = os.path.splitext(original_filename)[1]
+    ext = os.path.splitext(source_path)[1]
 
     new_name_stem = new_metadata.get("new_filename")
     if not new_name_stem:
@@ -281,7 +265,8 @@ def rename_and_move_book(
                     shutil.move(temp_path, source_path)
                 except Exception:
                     pass
-            return {"success": False, "message": f"移动失败: {e}"}
+            print(f"  ⚠️ 移动失败 ({type(e).__name__})")
+            return {"success": False, "message": "移动失败，请查看应用日志"}
 
         save_history_item(
             original_filename,
@@ -308,7 +293,7 @@ def rename_and_move_book(
             get_dynamic_rules(force_refresh=True)
             print("  🧠 已根据最新转移记录更新本地分类规则")
         except Exception as e:
-            print(f"  ⚠️ 更新本地规则失败: {e}")
+            print(f"  ⚠️ 更新本地规则失败 ({type(e).__name__})")
 
         # 写入增强模式数据库
         try:
@@ -325,7 +310,7 @@ def rename_and_move_book(
                     toc_db = get_toc_db_func()
                     toc_db.update_filename(source_path, new_filename_base, dest_path)
                 except Exception as e:
-                    print(f"  ⚠️ 更新 TOC 数据库文件名失败: {e}")
+                    print(f"  ⚠️ 更新 TOC 数据库文件名失败 ({type(e).__name__})")
 
             # Preserve existing summary if not provided
             final_summary = summary
@@ -342,7 +327,7 @@ def rename_and_move_book(
                     "category": destination_category,
                 },
             )
-            print(f"  ✓ 已保存增强信息到数据库: {os.path.basename(dest_path)}")
+            print("  ✓ 已保存增强信息到数据库")
 
             # 自动提取并保存文件内置目录（如果有）
             try:
@@ -354,13 +339,13 @@ def rename_and_move_book(
                 if toc_result.get("success") and toc_result.get("entry_count", 0) > 0:
                     toc_db.save_toc(dest_path, toc_result)
                     print(
-                        f"  📚 已提取并保存目录 ({toc_result['entry_count']} 条): {os.path.basename(dest_path)}"
+                        f"  📚 已提取并保存目录 ({toc_result['entry_count']} 条)"
                     )
             except Exception as e:
-                print(f"  ⚠️ 目录提取失败: {e}")
+                print(f"  ⚠️ 目录提取失败 ({type(e).__name__})")
 
         except Exception as e:
-            print(f"  ⚠️ 保存增强信息失败: {e}")
+            print(f"  ⚠️ 保存增强信息失败 ({type(e).__name__})")
 
         return {
             "success": True,
@@ -368,4 +353,5 @@ def rename_and_move_book(
         }
 
     except Exception as e:
-        return {"success": False, "message": f"移动失败: {e}"}
+        print(f"  ⚠️ 移动失败 ({type(e).__name__})")
+        return {"success": False, "message": "移动失败，请查看应用日志"}

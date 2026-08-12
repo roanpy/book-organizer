@@ -32,7 +32,7 @@ def convert_to_pdf_endpoint(request: ConvertToPdfRequest):
     file_path = resolve_file_path(request.filename, config)
 
     if not file_path:
-        raise HTTPException(status_code=404, detail=f"文件不存在: {request.filename}")
+        raise HTTPException(status_code=404, detail="文件不存在")
 
     if not is_convertible_format(file_path):
         ext = os.path.splitext(file_path.lower())[1]
@@ -53,6 +53,19 @@ def convert_to_pdf_endpoint(request: ConvertToPdfRequest):
     result = convert_to_pdf(file_path, output_dir)
 
     if not result["success"]:
-        raise HTTPException(status_code=500, detail=result["message"])
+        message = str(result.get("message") or "")
+        allowed_prefixes = (
+            "未找到 Calibre",
+            "文件可能受 DRM 保护",
+            "转换超时",
+            "转换失败",
+            "转换异常",
+        )
+        detail = (
+            message
+            if any(message.startswith(prefix) for prefix in allowed_prefixes)
+            else "转换失败，请查看应用日志"
+        )
+        raise HTTPException(status_code=500, detail=detail)
 
     return result

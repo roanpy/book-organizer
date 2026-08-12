@@ -10,6 +10,8 @@ Contains:
 
 from typing import Any, Dict, Optional
 
+from .dispatcher import format_ai_error
+
 
 def _get_deps():
     """Lazy import dependencies to avoid circular references."""
@@ -176,7 +178,7 @@ def offline_identify_with_warning(
         Merged metadata dict with warning field
     """
     result = offline_identify_metadata(filename, user_metadata, internal_metadata)
-    result["warning"] = f"AI 识别失败 ({error})，已自动使用本地数据"
+    result["warning"] = f"{format_ai_error(error)} 已自动使用本地数据"
     return result
 
 
@@ -230,7 +232,7 @@ def offline_batch_enhance_fallback(
     return {
         "metadata": final_meta,
         "summary": "",
-        "warning": f"AI 分析失败 ({error})，已自动使用本地数据",
+        "warning": f"{format_ai_error(error)} 已自动使用本地数据",
     }
 
 
@@ -339,7 +341,7 @@ def offline_batch_organize_fallback(
     )
 
     warning_msg = (
-        f"AI 分析失败 ({error})，已自动使用本地数据"
+        f"{format_ai_error(error)} 已自动使用本地数据"
         if error
         else "离线模式：使用本地规则分类，跳过 AI 简介生成"
     )

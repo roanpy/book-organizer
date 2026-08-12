@@ -329,7 +329,7 @@ def get_library_book_details(path: str, skip_file_read: bool = False):
             toc_data = toc_record.get("toc", [])
             toc_text = toc_record.get("toc_text", "")
     except Exception as e:
-        print(f"Error loading TOC: {e}")
+        print(f"Error loading TOC ({type(e).__name__})")
 
     return {
         "metadata": metadata,
