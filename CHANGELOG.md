@@ -6,6 +6,7 @@
 - Pinned GitHub Actions to immutable commits and grouped coordinated Dependabot updates.
 - Added SQLite schema version tracking, sanitized AI errors, and frontend workflow contract checks.
 - Restricted file resolution to configured book roots and included license notices in packaged artifacts.
+- Separated CI test dependencies from the desktop build toolchain and made builds use the selected Python environment.
 
 ## 0.8.3
 

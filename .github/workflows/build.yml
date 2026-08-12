@@ -22,17 +22,15 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: '3.11'
+          python-version: '3.13'
           cache: 'pip'
-          
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements-build.txt
-          
+          cache-dependency-path: |
+            requirements.txt
+            requirements-desktop.txt
+            requirements-build.txt
+
       - name: Build macOS App
-        run: |
-          ./scripts/build_standalone.sh
+        run: ./scripts/build_standalone.sh
 
       # Distribution stays disabled until the maintainer confirms the AGPL or
       # commercial-license policy for bundled EbookLib and PyMuPDF components.

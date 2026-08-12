@@ -1,6 +1,5 @@
 # Development and CI dependencies.
 -r requirements.txt
--r requirements-build.txt
 
 mypy==1.7.1
 pytest==9.0.3

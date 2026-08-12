@@ -33,9 +33,7 @@ dependencies = [
     "pikepdf>=9.0.0",
     "PyMuPDF>=1.26.0",
     "pypdf>=6.0.0",
-    "pywebview",
     "requests",
-    "tiktoken",
     "uvicorn>=0.20.0",
 ]
 

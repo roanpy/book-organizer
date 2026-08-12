@@ -1,0 +1,9 @@
+# Desktop shell dependencies bundled into the macOS application.
+bottle==0.13.4
+pyobjc-core==12.2.2; sys_platform == "darwin"
+pyobjc-framework-Cocoa==12.2.2; sys_platform == "darwin"
+pyobjc-framework-Quartz==12.2.2; sys_platform == "darwin"
+pyobjc-framework-Security==12.2.2; sys_platform == "darwin"
+pyobjc-framework-UniformTypeIdentifiers==12.2.2; sys_platform == "darwin"
+pyobjc-framework-WebKit==12.2.2; sys_platform == "darwin"
+pywebview==6.2.1

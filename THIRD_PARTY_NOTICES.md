@@ -8,6 +8,15 @@ metadata is copied from the installed distributions into every verified
 desktop bundle. A distributor must review the combined-work obligations and
 must not describe the resulting application bundle as MIT-only.
 
+The installed distribution metadata for every pinned core and desktop runtime
+dependency is also retained in desktop bundles so its upstream license terms
+remain available with the application.
+
+Some upstream wheels omit their standalone license file. Verified copies for
+Loguru 0.7.3, Primp 1.2.3, PyObjC 12.2.2, and Tokenizers 0.23.1 are retained in
+`licenses/`. Proxy Tools 0.1.0 declares MIT in its PyPI source metadata but
+does not ship a standalone license text; that original metadata is retained.
+
 The bundled Font Awesome Free 6.4.0 webfonts and CSS are provided under the
 SIL OFL 1.1 and MIT licenses. The complete upstream notice is included at
 `static/vendor/fontawesome/LICENSE.txt` and remains in packaged applications.
