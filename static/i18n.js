@@ -8,6 +8,16 @@
         '数据库增强': 'Database Enrichment',
         '自动上传到 Google Drive': 'Auto-upload to Google Drive',
         '离线模式': 'Offline Mode',
+        '未配置': 'Not Configured',
+        '本地功能可用': 'Local Features Available',
+        '批量': 'Batch',
+        '核心规则': 'Core Rules',
+        '增强规则': 'Enhanced Rules',
+        '附加规则': 'Additional Rules',
+        '历史参考': 'History Reference',
+        '字段提取': 'Field Extraction',
+        '内容与搜索控制': 'Content & Search Controls',
+        '目录规则': 'TOC Rules',
         '选择 AI 模型': 'Choose AI Model',
         '处理模式': 'Processing Mode',
         '批量增强': 'Batch Enrichment',
@@ -36,10 +46,27 @@
         '点击查看大图': 'View full cover',
         'AI 分析': 'AI Analysis',
         '开始信息及简介分析': 'Analyze Info & Summary',
+        '开始信息分析': 'Analyze Information',
         '停止分析': 'Stop Analysis',
         '图书信息': 'Book Information',
+        '大小': 'Size',
+        '修改时间': 'Modified',
+        '类型': 'Type',
+        '上传云盘': 'Upload to Drive',
+        '预览不可用 (文件可能未下载)': 'Preview unavailable (the file may not be downloaded)',
         '书名': 'Title',
         '作者': 'Author',
+        '支持多作者用 & 分隔': 'separate multiple authors with &',
+        '出版社': 'Publisher',
+        '丛书/系列': 'Series',
+        '标签 (逗号分隔)': 'Tags (comma-separated)',
+        '目标文件名预览': 'Target Filename Preview',
+        '点击上方按钮生成增强简介': 'Use the button above to generate an enhanced summary',
+        '例如: 时代的喧嚣': 'Example: Designing Reliable Systems',
+        '例如: [日] 村上春树': 'Example: Alex Morgan',
+        '例如: 中信出版社': 'Example: Northstar Press',
+        '例如: 理想国译丛': 'Example: Systems Library',
+        '例如: 文学, 诗歌': 'Example: systems, design',
         '识别信息': 'Identify Info',
         '增强简介': 'Enhanced Summary',
         '图书目录': 'Table of Contents',
@@ -109,6 +136,11 @@
         '连接成功': 'Connection successful',
         '：': ': '
     };
+    const exactTranslations = {
+        '出版': 'Publisher',
+        '丛书': 'Series',
+        '标签': 'Tags'
+    };
 
     const requestedLocale = new URLSearchParams(window.location.search).get('locale');
     const systemLocale = requestedLocale || navigator.language || navigator.userLanguage || 'en-US';
@@ -118,6 +150,10 @@
 
     function translate(value) {
         if (isChinese || typeof value !== 'string') return value;
+        const trimmed = value.trim();
+        if (exactTranslations[trimmed]) {
+            return value.replace(trimmed, exactTranslations[trimmed]);
+        }
         return pairs.reduce((text, [source, target]) => text.replaceAll(source, target), value);
     }
 
