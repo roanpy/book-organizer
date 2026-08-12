@@ -24,7 +24,6 @@ datas = [
     ('licenses', 'licenses'),
     ('LICENSE', '.'),
     ('THIRD_PARTY_NOTICES.md', '.'),
-    ('src/book_organizer', 'book_organizer'),
 ]
 binaries = []
 hiddenimports = ['uvicorn.logging', 'uvicorn.loops', 'uvicorn.loops.auto', 'uvicorn.protocols', 'uvicorn.protocols.http', 'uvicorn.protocols.http.auto', 'uvicorn.lifespan', 'uvicorn.lifespan.on', 'webview', 'pypdf', 'ebooklib', 'ebooklib.epub', 'fitz', 'pymupdf', 'pikepdf', 'litellm', 'tiktoken', 'tiktoken_ext', 'tiktoken_ext.openai_public', 'google.generativeai', 'google.auth.transport.requests', 'ollama', 'openai', 'ddgs', 'requests', 'book_organizer', 'book_organizer.routers', 'book_organizer.routers.config', 'book_organizer.routers.library', 'book_organizer.routers.analysis', 'book_organizer.routers.integrations', 'book_organizer.routers.sync', 'book_organizer.routers.models', 'book_organizer.config', 'book_organizer.ai_engines', 'book_organizer.metadata', 'book_organizer.file_ops', 'book_organizer.search', 'book_organizer.transfer', 'book_organizer.database', 'book_organizer.toc_extractor', 'book_organizer.pdf_converter', 'bs4', 'lxml']

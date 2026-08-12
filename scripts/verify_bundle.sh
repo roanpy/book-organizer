@@ -118,6 +118,14 @@ if [ -n "$matches" ]; then
     exit 1
 fi
 
+echo "  - 检查未复制源码缓存..."
+if find "$APP_PATH/Contents/Resources" \
+    \( -path "*/book_organizer/__pycache__/*" -o -path "*/book_organizer/*.pyc" \) \
+    -type f 2>/dev/null | grep -q .; then
+    echo "❌ 应用包包含源码目录中的 Python 缓存"
+    exit 1
+fi
+
 echo "  - 检查预览静态资源..."
 if ! find "$APP_PATH" -path "*/static/js/modules/preview.js" -type f | grep -q .; then
     echo "❌ 应用包缺少预览模块 static/js/modules/preview.js"
