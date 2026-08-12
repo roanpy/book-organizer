@@ -339,7 +339,6 @@ def _run_analysis_in_process(
                 "metadata": ai_result.get("metadata", final_metadata),
                 "summary": ai_result.get("summary", ""),
                 "suggestions": final_suggestions,
-                "raw_ai_result": ai_result,
                 "warning": ai_result.get("warning"),  # 传递前端显示的警告
             }
         )
@@ -874,5 +873,4 @@ def analyze_full(request: AnalyzeRequest):
         "metadata": ai_result.get("metadata", internal_metadata),
         "summary": ai_result.get("summary", ""),
         "suggestions": final_suggestions,
-        "raw_ai_result": ai_result,
     }

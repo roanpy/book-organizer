@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Stopped analysis APIs from returning raw provider responses or internal error details.
+
 ## 0.8.4
 
 - Updated vulnerable pinned Python dependencies to patched compatible releases.
