@@ -1,6 +1,9 @@
 # Book Organizer
 
-Local-first ebook organization, metadata analysis, preview, and library maintenance for macOS, Windows, and Linux.
+[![CI](https://github.com/roanpy/book-organizer/actions/workflows/ci.yml/badge.svg)](https://github.com/roanpy/book-organizer/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+Local-first ebook organization, metadata analysis, preview, and library maintenance.
 
 [简体中文](README.zh-CN.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
 
@@ -12,7 +15,7 @@ Local-first ebook organization, metadata analysis, preview, and library maintena
 - Extract metadata, covers, summaries, and tables of contents without changing source files by default.
 - Preview PDF, EPUB, TXT, and Markdown locally. Unsupported ebook formats can use an existing same-name PDF or optional Calibre conversion.
 - Maintain a searchable local library with duplicate detection, ratings, path repair, and configurable recognized formats.
-- Synchronize the database and portable preferences through a user-selected folder. API keys and OAuth credentials stay local by default.
+- Synchronize the database and portable preferences through a user-selected folder. API keys stay local by default.
 - Run as a local web app or a packaged desktop application. The server listens on `127.0.0.1` by default.
 
 ## Screenshots
@@ -54,9 +57,8 @@ Book Organizer stores its working data under `~/.book_organizer/` by default:
 
 - `book_organizer_config.json`: paths, preferences, and local provider configuration
 - `book_data.db`: the local library database
-- Google Drive OAuth files, when configured
 
-Portable preferences can be synchronized, but API keys, tokens, and client secrets are excluded unless the user explicitly enables sensitive credential sync. Preview responses use `no-store`; previews do not create reading-progress records or modify the source book.
+Portable preferences can be synchronized, but API keys and tokens are excluded unless the user explicitly enables sensitive credential sync. Preview responses use `no-store`; previews do not create reading-progress records or modify the source book.
 
 ## Desktop Builds
 
@@ -64,7 +66,7 @@ Portable preferences can be synchronized, but API keys, tokens, and client secre
 ./scripts/build_standalone.sh
 ```
 
-The macOS build script runs tests and bundle privacy checks before producing `dist/BookOrganizer.app`. See [RELEASING.md](RELEASING.md) for the release workflow.
+The packaged desktop application is verified on Apple Silicon macOS. The source also runs as a local web app on Python-supported systems; no Windows desktop bundle is currently published. The macOS build script runs bundle privacy checks before producing `dist/BookOrganizer.app`. See [RELEASING.md](RELEASING.md) for the release workflow.
 
 ## Development
 
@@ -80,8 +82,9 @@ Runtime dependencies are pinned in `requirements.txt`; build and development add
 
 ## Optional Tools
 
-- [Calibre](https://calibre-ebook.com/) provides `ebook-convert` for optional PDF conversion. It is not bundled.
-- Google Drive integration requires the user's own Desktop OAuth client JSON. Credentials remain in the local application data directory.
+- [Calibre](https://calibre-ebook.com/) provides `ebook-convert` for optional PDF conversion. It is not bundled. Exported PDFs can then be imported manually into services such as NotebookLM.
+
+The main branch does not bundle a cloud-drive SDK or perform automatic uploads. The former Google Drive integration is preserved on the `archive/google-drive-integration` branch.
 
 ## License
 

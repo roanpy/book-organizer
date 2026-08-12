@@ -12,6 +12,8 @@ PYTHON_BIN="${BOOK_ORGANIZER_VERIFY_PYTHON:-}"
 if [ -z "$PYTHON_BIN" ]; then
     if [ -x "venv/bin/python" ]; then
         PYTHON_BIN="venv/bin/python"
+    elif command -v python3 >/dev/null 2>&1; then
+        PYTHON_BIN="python3"
     else
         PYTHON_BIN="python"
     fi
@@ -23,6 +25,12 @@ if [ ! -d "$APP_PATH" ]; then
 fi
 
 echo "🔎 校验应用包: $APP_PATH"
+
+echo "  - 检查未使用的 Google API 定义未被打包..."
+if find "$APP_PATH" -path "*/googleapiclient/discovery_cache/documents/*.json" -type f | grep -q .; then
+    echo "❌ 应用包包含未使用的 Google API discovery 文档"
+    exit 1
+fi
 
 echo "  - 检查是否混入本机配置、数据库或凭据..."
 matches=$(find "$APP_PATH" \
@@ -38,14 +46,6 @@ if [ -n "$matches" ]; then
     echo "❌ 应用包包含敏感本地文件:"
     printf '%s\n' "$matches"
     exit 1
-fi
-
-echo "  - 检查 Google Drive discovery 文件..."
-if find "$APP_PATH" -path "*/googleapiclient/discovery_cache/documents" -type d | grep -q .; then
-    if ! find "$APP_PATH" -name "drive.v3.json" -type f | grep -q .; then
-        echo "❌ googleapiclient discovery_cache 存在，但缺少 drive.v3.json"
-        exit 1
-    fi
 fi
 
 echo "  - 检查预览静态资源..."
@@ -81,8 +81,6 @@ import ddgs
 import ebooklib
 import fastapi
 import fitz
-import google_auth_oauthlib
-import googleapiclient
 import loguru
 import ollama
 import openai

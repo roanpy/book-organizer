@@ -31,8 +31,6 @@ import ddgs
 import ebooklib
 import fastapi
 import fitz
-import google_auth_oauthlib
-import googleapiclient
 import loguru
 import pikepdf
 import pypdf

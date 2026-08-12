@@ -1993,14 +1993,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 自动上传按钮点击事件
-    const autoUploadIcon = document.getElementById('auto-upload-icon');
-    if (autoUploadIcon) {
-        autoUploadIcon.addEventListener('click', () => {
-            if (window.toggleAutoUpload) window.toggleAutoUpload();
-        });
-    }
-
     // Note: btn-gen-summary listener is also set in HTML onclick, 
     // but good to have safety here or just rely on global export.
 
@@ -2271,7 +2263,7 @@ window.handleMetadataInput = handleMetadataInput;
 window.initEnhancedMode = initEnhancedMode;
 
 // ============================================================================
-// Calibre PDF 转换功能 (NotebookLM 预集成)
+// Calibre PDF 转换功能
 // ============================================================================
 
 // 全局状态：Calibre 是否可用
@@ -2304,9 +2296,7 @@ async function initCalibreStatus() {
  * 
  * 逻辑:
  * - 需转换格式: 显示"导出" (有Calibre时可用)
- * - 不需转换格式: 
- *   - GDrive已连接+自动上传开启: 显示"上传云盘"
- *   - 否则: 按钮禁用(灰色)
+ * - 不需转换格式: 隐藏按钮
  */
 function updateConvertPdfButton() {
     const btn = document.getElementById('btn-export-pdf-new') || document.getElementById('btn-convert-pdf');
@@ -2325,51 +2315,30 @@ function updateConvertPdfButton() {
 
     const ext = bookPath.toLowerCase().substring(bookPath.lastIndexOf('.'));
     const needsConversion = window.isFormatNeedsConversion ? window.isFormatNeedsConversion(ext) : false;
-    const gdriveEnabled = isGoogleDriveConnected && isAutoUploadEnabled;
+    console.log(`[Export Button] Path: ${bookPath}, Ext: ${ext}, NeedsConv: ${needsConversion}, Calibre: ${calibreAvailable}`);
 
-    console.log(`[Export Button] Path: ${bookPath}, Ext: ${ext}, NeedsConv: ${needsConversion}, GDrive: ${gdriveEnabled}, Calibre: ${calibreAvailable}`);
-
-    // 始终显示按钮
-    btn.classList.remove('hidden');
-    btn.style.display = 'inline-flex';
+    btn.classList.toggle('hidden', !needsConversion);
+    btn.style.display = needsConversion ? 'inline-flex' : 'none';
+    if (!needsConversion) return;
 
     // 移除所有状态类
     btn.classList.remove('btn-upload-disabled');
     btn.disabled = false;
 
-    if (needsConversion) {
-        // 需转换格式: 显示"导出"
-        btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> 导出';
-        btn.title = 'Calibre 转换为 PDF 格式';
-        btn.setAttribute('data-action', 'convert');
+    btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> 导出';
+    btn.title = 'Calibre 转换为 PDF 格式';
+    btn.setAttribute('data-action', 'convert');
 
-        if (!calibreAvailable) {
-            btn.classList.add('btn-upload-disabled');
-            btn.disabled = true;
-            btn.title = '需要安装 Calibre 才能转换此格式';
-        }
-    } else {
-        // 不需转换格式
-        if (gdriveEnabled) {
-            // GDrive 可用: 显示"上传云盘"
-            btn.innerHTML = '<i class="fa-brands fa-google-drive"></i> 上传云盘';
-            btn.title = '复制到导出目录并上传 Google Drive';
-            btn.setAttribute('data-action', 'upload');
-        } else {
-            // GDrive 不可用: 禁用按钮
-            btn.innerHTML = '<i class="fa-brands fa-google-drive"></i> 上传云盘';
-            btn.classList.add('btn-upload-disabled');
-            btn.disabled = true;
-            btn.title = '请先连接 Google Drive 并开启自动上传';
-            btn.setAttribute('data-action', 'disabled');
-        }
+    if (!calibreAvailable) {
+        btn.classList.add('btn-upload-disabled');
+        btn.disabled = true;
+        btn.title = '需要安装 Calibre 才能转换此格式';
     }
 }
 window.updateConvertPdfButton = updateConvertPdfButton;
 
 /**
- * 智能导出/上传处理函数
- * 根据按钮的 data-action 属性决定行为
+ * 导出处理函数
  */
 async function handleSmartExport() {
     const btn = document.getElementById('btn-export-pdf-new') || document.getElementById('btn-convert-pdf');
@@ -2385,8 +2354,6 @@ async function handleSmartExport() {
 
     if (action === 'convert') {
         await convertToPdf();
-    } else if (action === 'upload') {
-        await directUploadToGDrive();
     }
 }
 window.handleSmartExport = handleSmartExport;
@@ -2432,55 +2399,6 @@ async function convertToPdf() {
     }
 }
 window.convertToPdf = convertToPdf;
-
-/**
- * 直接上传到 Google Drive (不转换格式)
- */
-async function directUploadToGDrive() {
-    const bookPath = window.currentBookPath || window.currentBook || currentBook;
-
-    if (!bookPath) {
-        showNotification('请先选择一本图书', 3000, 'error');
-        return;
-    }
-
-    const btn = document.getElementById('btn-export-pdf-new') || document.getElementById('btn-convert-pdf');
-    if (!btn) return;
-
-    const originalText = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<div class="spinner-small"></div> 上传中...';
-
-    try {
-        const res = await fetch(`${API_BASE}/direct_upload`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ file_path: bookPath })
-        });
-
-        const result = await res.json();
-
-        if (!res.ok) {
-            // HTTP error response (4xx, 5xx)
-            const errorMsg = result.detail || result.message || '上传失败';
-            showNotification(`上传失败: ${errorMsg}`, 5000, 'error');
-            return;
-        }
-
-        if (result.success) {
-            showNotification(`已上传: ${result.filename}`, 5000, 'success');
-        } else {
-            showNotification(`上传失败: ${result.message}`, 5000, 'error');
-        }
-    } catch (e) {
-        showNotification(`上传失败: ${e.message}`, 5000, 'error');
-        console.error('[GDrive] Direct upload failed:', e);
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-    }
-}
-window.directUploadToGDrive = directUploadToGDrive;
 
 // 在 DOMContentLoaded 时初始化 Calibre 状态
 document.addEventListener('DOMContentLoaded', () => {

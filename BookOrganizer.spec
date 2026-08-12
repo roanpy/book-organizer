@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_all, collect_data_files
+from PyInstaller.utils.hooks import collect_all
 
 
 def keep_litellm_runtime_module(module_name):
@@ -19,14 +19,7 @@ datas = [
     ('src/book_organizer', 'book_organizer'),
 ]
 binaries = []
-hiddenimports = ['uvicorn.logging', 'uvicorn.loops', 'uvicorn.loops.auto', 'uvicorn.protocols', 'uvicorn.protocols.http', 'uvicorn.protocols.http.auto', 'uvicorn.lifespan', 'uvicorn.lifespan.on', 'webview', 'pypdf', 'ebooklib', 'ebooklib.epub', 'fitz', 'pymupdf', 'pikepdf', 'litellm', 'tiktoken', 'tiktoken_ext', 'tiktoken_ext.openai_public', 'google.generativeai', 'google.oauth2.credentials', 'google_auth_oauthlib', 'google_auth_oauthlib.flow', 'google.auth.transport.requests', 'googleapiclient', 'googleapiclient.discovery', 'googleapiclient.http', 'google_auth_httplib2', 'httplib2', 'uritemplate', 'ollama', 'openai', 'ddgs', 'python_multipart', 'multipart', 'requests', 'book_organizer', 'book_organizer.routers', 'book_organizer.routers.config', 'book_organizer.routers.library', 'book_organizer.routers.analysis', 'book_organizer.routers.integrations', 'book_organizer.routers.sync', 'book_organizer.routers.models', 'book_organizer.config', 'book_organizer.ai_engines', 'book_organizer.metadata', 'book_organizer.file_ops', 'book_organizer.search', 'book_organizer.transfer', 'book_organizer.database', 'book_organizer.toc_extractor', 'book_organizer.google_drive', 'book_organizer.pdf_converter', 'bs4', 'lxml']
-
-# Google Drive only needs Drive v3 discovery data at runtime. Include it
-# explicitly so the bundle does not rely on PyInstaller's generic collection.
-datas += collect_data_files(
-    'googleapiclient',
-    includes=['discovery_cache/documents/drive.v3.json'],
-)
+hiddenimports = ['uvicorn.logging', 'uvicorn.loops', 'uvicorn.loops.auto', 'uvicorn.protocols', 'uvicorn.protocols.http', 'uvicorn.protocols.http.auto', 'uvicorn.lifespan', 'uvicorn.lifespan.on', 'webview', 'pypdf', 'ebooklib', 'ebooklib.epub', 'fitz', 'pymupdf', 'pikepdf', 'litellm', 'tiktoken', 'tiktoken_ext', 'tiktoken_ext.openai_public', 'google.generativeai', 'google.auth.transport.requests', 'ollama', 'openai', 'ddgs', 'requests', 'book_organizer', 'book_organizer.routers', 'book_organizer.routers.config', 'book_organizer.routers.library', 'book_organizer.routers.analysis', 'book_organizer.routers.integrations', 'book_organizer.routers.sync', 'book_organizer.routers.models', 'book_organizer.config', 'book_organizer.ai_engines', 'book_organizer.metadata', 'book_organizer.file_ops', 'book_organizer.search', 'book_organizer.transfer', 'book_organizer.database', 'book_organizer.toc_extractor', 'book_organizer.pdf_converter', 'bs4', 'lxml']
 
 # Collect LiteLLM runtime resources. The app only calls litellm.completion();
 # proxy/UI modules pull optional server dependencies and increase bundle noise.

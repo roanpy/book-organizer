@@ -153,8 +153,6 @@ let shouldStopBatch = false;
 let isBatchRunning = false;
 let isWebSearchEnabled = true;
 window.isWebSearchEnabled = isWebSearchEnabled; // 同步到 window
-let isAutoUploadEnabled = false;  // 自动上传到 Google Drive
-let isGoogleDriveConnected = false;  // Google Drive 是否已连接
 let currentMode = 'organize'; // 'organize' | 'manage'
 window.currentMode = currentMode;
 let libraryBooks = [];
@@ -193,8 +191,6 @@ function setState(key, value) {
             isWebSearchEnabled = value;
             window.isWebSearchEnabled = value;
             break;
-        case 'isAutoUploadEnabled': isAutoUploadEnabled = value; break;
-        case 'isGoogleDriveConnected': isGoogleDriveConnected = value; break;
         case 'currentMode':
             currentMode = value;
             window.currentMode = value;

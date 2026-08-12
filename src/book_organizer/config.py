@@ -35,7 +35,6 @@ SYNC_PREFERENCE_KEYS = [
     "book_extensions",
     "beta_features",
     "display_priority",
-    "google_drive",
     "user_preferences",
     "gemini",
     "deepseek",
@@ -219,6 +218,8 @@ def build_synced_preferences(config):
         for key in SYNC_PREFERENCE_KEYS
         if key in config and config.get(key) is not None
     }
+    if isinstance(prefs.get("beta_features"), dict):
+        prefs["beta_features"].pop("google_drive", None)
     prefs.setdefault("display_priority", config.get("display_priority", "file"))
     prefs["schema_version"] = 2
     prefs["updated_at"] = datetime.now().isoformat()
@@ -251,6 +252,8 @@ def merge_synced_config_files(config, sync_path=None, include_sensitive=None):
                         )
                     else:
                         config[key] = _strip_sensitive_fields(cloud_prefs[key])
+            if isinstance(config.get("beta_features"), dict):
+                config["beta_features"].pop("google_drive", None)
         except Exception as e:
             print(f"Failed to load cloud preferences: {e}")
 
@@ -359,31 +362,6 @@ def load_config(merge_cloud=True):
         sync_path = os.path.expanduser(sync_config["path"])  # 支持 ~ 路径
         config = merge_synced_config_files(config, sync_path)
 
-        if _sync_sensitive_credentials_enabled(config):
-            # 加载云端 Google Drive Token
-            cloud_token_file = os.path.join(sync_path, "google_drive_token.json")
-            local_token_file = os.path.join(APP_DIR, "google_drive_token.json")
-            if os.path.exists(cloud_token_file) and not os.path.exists(
-                local_token_file
-            ):
-                try:
-                    shutil.copy2(cloud_token_file, local_token_file)
-                    print("Synced Google Drive token from cloud")
-                except Exception as e:
-                    print(f"Failed to sync Google token: {e}")
-
-            # 加载云端 Client Secrets
-            cloud_secrets_file = os.path.join(sync_path, "client_secrets.json")
-            local_secrets_file = os.path.join(APP_DIR, "client_secrets.json")
-            if os.path.exists(cloud_secrets_file) and not os.path.exists(
-                local_secrets_file
-            ):
-                try:
-                    shutil.copy2(cloud_secrets_file, local_secrets_file)
-                    print("Synced client secrets from cloud")
-                except Exception as e:
-                    print(f"Failed to sync client secrets: {e}")
-
     # 配置项迁移：enhanced_summary_dir -> data_dir
     if "enhanced_summary_dir" in config and "data_dir" not in config:
         config["data_dir"] = config.pop("enhanced_summary_dir")
@@ -395,6 +373,7 @@ def load_config(merge_cloud=True):
     # 确保 beta_features 存在且包含所有默认值
     if "beta_features" not in config:
         config["beta_features"] = {}
+    config["beta_features"].pop("google_drive", None)
 
     beta_defaults = {
         "enable_similar_search": False,
@@ -404,7 +383,6 @@ def load_config(merge_cloud=True):
         "enable_summary_write_pdf": False,
         "pdf_export_dir": "",
         "data_priority": "database",  # database | metadata
-        "google_drive": {"target_folder_id": "", "auto_upload": False},
         "convert_formats": ["epub", "mobi", "azw", "azw3", "fb2", "lit", "lrf", "pdb"],
         # 本地功能开关 (无需 AI) - 2026-01-20 新增
         "local_categorization": False,  # 基于关键词的本地分类
@@ -450,23 +428,6 @@ def save_config(config, sync_cloud=True):
         if os.path.exists(sync_path):  # 确保目录存在
             try:
                 save_synced_config_files(config, sync_path)
-
-                if _sync_sensitive_credentials_enabled(config):
-                    # 同步 Google Drive Token
-                    local_token = os.path.join(APP_DIR, "google_drive_token.json")
-                    if os.path.exists(local_token):
-                        shutil.copy2(
-                            local_token,
-                            os.path.join(sync_path, "google_drive_token.json"),
-                        )
-
-                    # 同步 Client Secrets
-                    local_secrets = os.path.join(APP_DIR, "client_secrets.json")
-                    if os.path.exists(local_secrets):
-                        shutil.copy2(
-                            local_secrets,
-                            os.path.join(sync_path, "client_secrets.json"),
-                        )
 
                 # 同步去重忽略列表 (Deduplication Ignores)
                 local_ignores = os.path.join(APP_DIR, "dedup_ignores.json")

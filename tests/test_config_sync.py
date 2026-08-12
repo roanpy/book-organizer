@@ -128,9 +128,6 @@ def test_save_config_syncs_secrets_only_when_enabled(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(config_module, "AI_CONFIG_FILE", config_module.CONFIG_FILE)
 
-    (local_dir / "google_drive_token.json").write_text("{}", encoding="utf-8")
-    (local_dir / "client_secrets.json").write_text("{}", encoding="utf-8")
-
     config_module.save_config(
         {
             "sync": {
@@ -151,8 +148,32 @@ def test_save_config_syncs_secrets_only_when_enabled(monkeypatch, tmp_path):
     assert "api_key" not in prefs["gemini"]
     assert secrets["providers"]["gemini"]["api_key"] == "secret-gemini"
     assert secrets["custom_providers"]["demo"]["api_key"] == "secret-custom"
-    assert (sync_dir / "google_drive_token.json").exists()
-    assert (sync_dir / "client_secrets.json").exists()
+
+
+def test_synced_preferences_drop_legacy_google_drive_config():
+    prefs = config_module.build_synced_preferences(
+        {
+            "beta_features": {
+                "data_priority": "database",
+                "google_drive": {"auto_upload": True},
+            }
+        }
+    )
+
+    assert prefs["beta_features"] == {"data_priority": "database"}
+
+
+def test_load_config_drops_legacy_local_google_drive_config(monkeypatch, tmp_path):
+    config_file = tmp_path / "book_organizer_config.json"
+    write_json(
+        config_file,
+        {"beta_features": {"google_drive": {"auto_upload": True}}},
+    )
+    monkeypatch.setattr(config_module, "CONFIG_FILE", str(config_file))
+
+    loaded = config_module.load_config(merge_cloud=False)
+
+    assert "google_drive" not in loaded["beta_features"]
 
 
 def test_load_config_imports_legacy_cloud_api_key_once(monkeypatch, tmp_path):

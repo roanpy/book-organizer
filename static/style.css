@@ -4751,31 +4751,6 @@ label {
     animation: pulse 1s infinite;
 }
 
-/* Google Drive 状态指示灯 */
-.status-dot.connected {
-    background-color: var(--success-color);
-    box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
-}
-
-.status-dot.disconnected {
-    background-color: var(--text-disabled);
-}
-
-.status-dot.pending {
-    background-color: var(--warning-color);
-    animation: pulse 1.5s infinite;
-}
-
-.gdrive-status-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.gdrive-status-row .status-dot {
-    margin-left: 0;
-}
-
 .btn-sm {
     height: 28px;
     padding: 0 12px;

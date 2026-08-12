@@ -28,8 +28,7 @@ function openLibraryBatchModal(type) {
             has_toc: book ? book.has_toc : false,
             status: 'pending',
             enhanceStatus: null,
-            convertStatus: null,
-            uploadStatus: null
+            convertStatus: null
         };
     });
     window.setLibraryBatchState({ queue: queue });
@@ -41,13 +40,10 @@ function openLibraryBatchModal(type) {
         title.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> 批量信息增强';
         document.getElementById('col-enhance').classList.remove('hidden');
         document.getElementById('col-convert').classList.add('hidden');
-        document.getElementById('col-upload').classList.add('hidden');
     } else {
-        title.innerHTML = '<i class="fa-solid fa-file-export"></i> 批量转换上传';
+        title.innerHTML = '<i class="fa-solid fa-file-export"></i> 批量转换';
         document.getElementById('col-enhance').classList.add('hidden');
         document.getElementById('col-convert').classList.remove('hidden');
-        const showUpload = window.isGDriveConnected && window.isGDriveConnected();
-        document.getElementById('col-upload').classList.toggle('hidden', !showUpload);
     }
 
     renderBatchList();
@@ -164,14 +160,6 @@ function renderBatchList() {
             tdConvert.innerHTML = renderStatusIcon(item.convertStatus || 'pending');
             tr.appendChild(tdConvert);
 
-            const showUpload = window.isGDriveConnected && window.isGDriveConnected();
-            if (showUpload) {
-                const tdUpload = document.createElement('td');
-                tdUpload.className = 'batch-status';
-                tdUpload.id = `upload-status-${index}`;
-                tdUpload.innerHTML = renderStatusIcon(item.uploadStatus || 'pending');
-                tr.appendChild(tdUpload);
-            }
         }
 
         // 操作
@@ -268,8 +256,6 @@ function updateRowStatus(path, status, column = 'enhance', forceRefreshIcons = f
         statusEl = document.getElementById(`enhance-status-${index}`);
     } else if (column === 'convert') {
         statusEl = document.getElementById(`convert-status-${index}`);
-    } else if (column === 'upload') {
-        statusEl = document.getElementById(`upload-status-${index}`);
     }
 
     if (statusEl) {

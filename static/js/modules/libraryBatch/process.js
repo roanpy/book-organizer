@@ -184,11 +184,11 @@ async function startBatchEnhance() {
 }
 
 // ============================================================================
-// 批量转换上传
+// 批量转换
 // ============================================================================
 
 /**
- * 开始批量转换上传
+ * 开始批量转换
  */
 async function startBatchConvert() {
     const state = window.getLibraryBatchState();
@@ -203,9 +203,6 @@ async function startBatchConvert() {
 
     document.getElementById('lib-batch-start').classList.add('hidden');
     document.getElementById('lib-batch-stop').classList.remove('hidden');
-
-    const needUpload = window.isGDriveConnected && window.isGDriveConnected() &&
-        document.getElementById('gdrive-auto-upload')?.checked;
 
     let processed = 0;
 
@@ -238,52 +235,11 @@ async function startBatchConvert() {
                     throw new Error(error.detail || '转换失败');
                 }
 
-                const convertResult = await convertResponse.json();
+                await convertResponse.json();
                 window.updateRowStatus(item.path, 'done', 'convert');
-
-                // 上传
-                if (needUpload && convertResult.pdf_path) {
-                    // 如果后端已经自动上传了，直接标记成功
-                    if (convertResult.uploaded_to_drive) {
-                        window.updateRowStatus(item.path, 'done', 'upload');
-                        window.updateBatchProgress(processed, `处理完成: ${item.name} (自动上传成功)`);
-                    } else {
-                        // 否则前端触发上传
-                        window.updateRowStatus(item.path, 'processing', 'upload');
-
-                        const uploadResponse = await fetch(`${API_BASE}/google_drive/upload`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ file_path: convertResult.pdf_path })
-                        });
-
-                        if (uploadResponse.ok) {
-                            window.updateRowStatus(item.path, 'done', 'upload');
-                        } else {
-                            window.updateRowStatus(item.path, 'error', 'upload');
-                        }
-                    }
-                }
             } else {
                 // 无需转换
                 window.updateRowStatus(item.path, 'skipped', 'convert');
-
-                // 直接上传原文件
-                if (needUpload) {
-                    window.updateRowStatus(item.path, 'processing', 'upload');
-
-                    const uploadResponse = await fetch(`${API_BASE}/google_drive/upload`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ file_path: item.path })
-                    });
-
-                    if (uploadResponse.ok) {
-                        window.updateRowStatus(item.path, 'done', 'upload');
-                    } else {
-                        window.updateRowStatus(item.path, 'error', 'upload');
-                    }
-                }
             }
 
         } catch (e) {

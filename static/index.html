@@ -35,11 +35,6 @@
                 <button id="db-enhance-icon" class="btn-icon-only has-tooltip" data-tooltip="数据库增强">
                     <i class="fa-solid fa-database"></i>
                 </button>
-                <button id="auto-upload-icon" class="btn-icon-only has-tooltip hidden"
-                    data-tooltip="自动上传到 Google Drive">
-                    <i class="fa-brands fa-google-drive"></i>
-                </button>
-
                 <!-- Vertical Divider -->
                 <span class="header-divider"></span>
 
@@ -272,7 +267,7 @@
                                     <i class="fa-solid fa-eye"></i> 预览
                                 </button>
                                 <button id="btn-export-pdf-new" class="btn-secondary" onclick="handleSmartExport()"
-                                    style="display: none;" title="导出或上传云盘">
+                                    style="display: none;" title="导出 PDF">
                                     <i class="fa-solid fa-file-pdf"></i> 导出
                                 </button>
                                 <button id="btn-save" class="btn-save-inactive">
@@ -909,81 +904,7 @@
 
                             <div class="settings-section-title">
                                 <i class="fa-solid fa-cloud-arrow-up"></i>
-                                <span>外部集成与转换</span>
-                            </div>
-
-                            <div class="beta-feature-item">
-                                <div class="feature-header">
-                                    <h4><i class="fa-brands fa-google-drive"></i> Google Drive 集成</h4>
-                                </div>
-                                <p class="feature-desc">
-                                    将转换的 PDF 自动上传到 Google Drive，便于与 NotebookLM 集成。
-                                </p>
-
-                                <!-- 连接状态 -->
-                                <div class="gdrive-status-row" style="margin: 12px 0;">
-                                    <span id="gdrive-status-indicator" class="status-dot disconnected"></span>
-                                    <span id="gdrive-status-text">未连接</span>
-                                    <button type="button" class="btn-secondary btn-sm" id="gdrive-auth-btn"
-                                        onclick="authorizeGoogleDrive()">
-                                        <i class="fa-solid fa-link"></i> 授权连接
-                                    </button>
-                                    <button type="button" class="btn-danger btn-sm hidden" id="gdrive-disconnect-btn"
-                                        onclick="disconnectGoogleDrive()">
-                                        <i class="fa-solid fa-unlink"></i> 断开
-                                    </button>
-                                </div>
-
-                                <!-- 配置区域 (未配置时显示) -->
-                                <div id="gdrive-setup-section" class="hidden"
-                                    style="margin-top: 8px; padding: 12px; background: rgba(255,255,255,0.05); border-radius: 6px;">
-                                    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
-                                        <button type="button" class="btn-secondary btn-sm"
-                                            onclick="document.getElementById('file-upload-credentials').click()">
-                                            <i class="fa-solid fa-upload"></i> 上传凭据 (client_secrets.json)
-                                        </button>
-                                        <input type="file" id="file-upload-credentials" style="display: none"
-                                            accept=".json" onchange="uploadGDriveCredentials(this)">
-
-                                        <button type="button" class="btn-text btn-sm" onclick="toggleGDriveHelp()">
-                                            <i class="fa-solid fa-question-circle"></i> 如何获取配置?
-                                        </button>
-                                    </div>
-
-                                    <!-- 帮助说明 -->
-                                    <div id="gdrive-help-text" class="hidden"
-                                        style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5;">
-                                        <p>1. 访问 <a href="https://console.cloud.google.com/" target="_blank"
-                                                style="color: var(--primary-color);">Google Cloud Console</a>。</p>
-                                        <p>2. 创建项目并启用 <strong>Google Drive API</strong>。</p>
-                                        <p>3. 在"凭据"页面创建 <strong>OAuth 客户端 ID</strong> (应用类型选"桌面应用")。</p>
-                                        <p>4. 下载 JSON 文件并在此上传。</p>
-                                        <p style="margin-top: 4px; font-size: 0.85rem; opacity: 0.8;">(详细指南请查看
-                                            docs/google_drive_auth_guide.md)</p>
-                                    </div>
-                                </div>
-
-                                <!-- 目标文件夹（已连接时显示） -->
-                                <div id="gdrive-folder-section" class="hidden" style="margin-top: 12px;">
-                                    <label class="input-label">目标文件夹</label>
-                                    <div class="input-group">
-                                        <select id="gdrive-folder-select">
-                                            <option value="">根目录 (我的云端硬盘)</option>
-                                        </select>
-                                        <button type="button" class="btn-secondary btn-sm"
-                                            onclick="refreshGDriveFolders()">
-                                            <i class="fa-solid fa-sync"></i>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <!-- 自动上传开关（已连接时显示） -->
-                                <div id="gdrive-auto-section" class="hidden" style="margin-top: 12px;">
-                                    <label class="toggle-label">
-                                        <input type="checkbox" id="gdrive-auto-upload">
-                                        <span>PDF 转换后自动上传</span>
-                                    </label>
-                                </div>
+                                <span>格式转换</span>
                             </div>
 
                             <div class="beta-feature-item" style="margin-top: 16px;">
@@ -991,7 +912,7 @@
                                     <h4><i class="fa-solid fa-file-export"></i> 需转换格式</h4>
                                 </div>
                                 <p class="feature-desc">
-                                    以下格式将在导出时转换为 PDF（NotebookLLM 不原生支持）。其他格式可直接上传。
+                                    以下格式将在导出时转换为 PDF，结果保存到配置的导出目录；未配置时保存在源文件旁边。
                                 </p>
                                 <div style="display: flex; gap: 8px; margin-top: 8px;">
                                     <input type="text" id="convert-format-input" placeholder="输入格式 (如 epub)"
@@ -1736,7 +1657,7 @@
                     <ul>
                         <li><strong>批量选择</strong>：勾选左侧列表中的图书或文件夹进行批量选择</li>
                         <li><strong>批量增强</strong>：一次性为多本图书生成增强简介，实时显示进度</li>
-                        <li><strong>批量转换</strong>：批量转换格式并自动上传云盘（需先配置 Google Drive）</li>
+                        <li><strong>批量转换</strong>：将选中格式批量导出为 PDF（需安装 Calibre）</li>
                         <li><strong>悬停预览</strong>：在批量列表中悬停图书名称，快速查看简介和目录</li>
                     </ul>
                 </div>
@@ -2047,7 +1968,6 @@
                                 <th style="width:50px">目录</th>
                                 <th id="col-enhance" class="hidden" style="width:60px">增强</th>
                                 <th id="col-convert" class="hidden" style="width:60px">转换</th>
-                                <th id="col-upload" class="hidden" style="width:60px">上传</th>
                                 <th style="width:70px">操作</th>
                             </tr>
                         </thead>
@@ -2111,7 +2031,6 @@
     <!-- settings 子模块 -->
     <script src="/static/js/modules/settings/model-config.js"></script>
     <script src="/static/js/modules/settings/custom-provider.js"></script>
-    <script src="/static/js/modules/settings/google-drive.js"></script>
     <script src="/static/js/modules/settings/cloud-sync.js?v=3"></script>
     <script src="/static/js/modules/settings.js?v=5"></script>
     <script src="/static/js/modules/records.js"></script>

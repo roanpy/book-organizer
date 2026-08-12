@@ -828,7 +828,7 @@ window.saveMetadata = saveMetadata;
 window.fetchEnhancedSummary = fetchEnhancedSummary;
 
 // ============================================================================
-// Calibre PDF 转换 API (NotebookLM 预集成功能)
+// Calibre PDF 转换 API
 // ============================================================================
 
 /**

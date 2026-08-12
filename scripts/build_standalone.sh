@@ -12,7 +12,7 @@
 #   - 自动优化体积 (删除不必要的模块, ~90MB 节省)
 #   - 支持 UPX 压缩 (可选, 额外减小 30-40%)
 #   - 包含所有 AI 引擎支持 (Gemini/DeepSeek/Ollama/自定义)
-#   - 包含 Google Drive 集成和 Calibre PDF 转换支持
+#   - 包含 Calibre PDF 转换支持
 #
 # 系统要求:
 #   - macOS 12.0+
@@ -23,7 +23,7 @@
 #   ./scripts/build_standalone.sh
 #
 # 输出:
-#   dist/BookOrganizer.app (~150-180MB)
+#   dist/BookOrganizer.app
 #
 # ==========================================
 
@@ -110,8 +110,6 @@ import ddgs
 import ebooklib
 import fastapi
 import fitz
-import google_auth_oauthlib
-import googleapiclient
 import loguru
 import ollama
 import openai
@@ -176,32 +174,8 @@ pyinstaller --noconfirm --clean BookOrganizer.spec
 
 # 检查构建是否成功
 if [ -d "dist/BookOrganizer.app" ]; then
-    # 优化：删除不必要的 googleapiclient (节省 ~90M)
     echo ""
     echo "🔧 优化打包体积..."
-    
-    # 优化 Google API Client 体积 (只保留 Drive v3)
-    # googleapiclient/discovery_cache/documents 包含了所有 Google 服务的定义 (~90MB)
-    # 我们只保留 drive.v3.json，删除其他所有文件
-    
-    clean_google_docs() {
-        local target_dir="$1"
-        if [ -d "$target_dir/googleapiclient/discovery_cache/documents" ]; then
-            echo "  🔧 清理 Google API 定义文件 (保留 drive.v3)..."
-            local before_size=$(du -sk "$target_dir/googleapiclient" 2>/dev/null | cut -f1)
-            find "$target_dir/googleapiclient/discovery_cache/documents" \
-                -type f -name "*.json" \
-                ! -name "drive.v3.json" \
-                -delete 2>/dev/null
-            local after_size=$(du -sk "$target_dir/googleapiclient" 2>/dev/null | cut -f1)
-            if [ -n "$before_size" ] && [ -n "$after_size" ]; then
-                local saved=$((before_size - after_size))
-                echo "  ✓ 已清理多余 API 定义，节省 ${saved}KB (~$((saved/1024))MB)"
-            else
-                echo "  ✓ 已清理多余 API 定义"
-            fi
-        fi
-    }
 
     clean_litellm_optional_modules() {
         local target_dir="$1"
@@ -212,6 +186,16 @@ if [ -d "dist/BookOrganizer.app" ]; then
             rm -rf "$target_dir/litellm/tests" 2>/dev/null || true
             rm -rf "$target_dir/litellm/types/proxy" 2>/dev/null || true
             rm -f "$target_dir/litellm/integrations/test_httpx.py" 2>/dev/null || true
+        fi
+    }
+
+    clean_google_discovery_docs() {
+        local target_dir="$1"
+        local documents="$target_dir/googleapiclient/discovery_cache/documents"
+        if [ -d "$documents" ]; then
+            echo "  🔧 清理 Gemini 依赖附带的未使用 Google API 定义..."
+            find "$documents" -type f -delete
+            find "$documents" -depth -type d -empty -delete
         fi
     }
 
@@ -241,30 +225,19 @@ if [ -d "dist/BookOrganizer.app" ]; then
     # 检测实际的打包结构 (可能是 .app 或 onedir)
     if [ -d "dist/BookOrganizer.app" ]; then
         # macOS .app bundle 结构
-        clean_google_docs "dist/BookOrganizer.app/Contents/Resources"
-        clean_google_docs "dist/BookOrganizer.app/Contents/Frameworks"
         clean_litellm_optional_modules "dist/BookOrganizer.app/Contents/Resources"
         clean_litellm_optional_modules "dist/BookOrganizer.app/Contents/Frameworks"
+        clean_google_discovery_docs "dist/BookOrganizer.app/Contents/Resources"
+        clean_google_discovery_docs "dist/BookOrganizer.app/Contents/Frameworks"
         assert_no_user_data_packaged "dist/BookOrganizer.app/Contents/Resources"
         assert_no_user_data_packaged "dist/BookOrganizer.app/Contents/Frameworks"
     elif [ -d "dist/BookOrganizer/_internal" ]; then
         # onedir 结构
-        clean_google_docs "dist/BookOrganizer/_internal"
         clean_litellm_optional_modules "dist/BookOrganizer/_internal"
+        clean_google_discovery_docs "dist/BookOrganizer/_internal"
         assert_no_user_data_packaged "dist/BookOrganizer/_internal"
     fi
     
-    # 删除 google-api-python-client 的 dist-info
-    rm -rf "dist/BookOrganizer.app/Contents/Resources/google_api_python_client-"*.dist-info 2>/dev/null
-    rm -rf "dist/BookOrganizer.app/Contents/Frameworks/google_api_python_client-"*.dist-info 2>/dev/null
-    
-    # 删除其他不必要的模块
-    # googleapiclient 需要 httplib2 和 uritemplate，不能删除！
-    # rm -rf "dist/BookOrganizer.app/Contents/Resources/httplib2" 2>/dev/null
-    # rm -rf "dist/BookOrganizer.app/Contents/Frameworks/httplib2" 2>/dev/null
-    # rm -rf "dist/BookOrganizer.app/Contents/Resources/uritemplate" 2>/dev/null
-    # rm -rf "dist/BookOrganizer.app/Contents/Frameworks/uritemplate" 2>/dev/null
-
     # PyInstaller 会先签名 bundle。上面的体积优化会删除 bundle 内文件，
     # 因此必须在优化完成后重新 ad-hoc 签名，否则 codesign 校验会报 file missing。
     if command -v codesign &> /dev/null; then
@@ -290,8 +263,7 @@ if [ -d "dist/BookOrganizer.app" ]; then
     echo "2. 验证 AI 功能 (Gemini/DeepSeek/Ollama)"
     echo "3. 测试增强简介生成和显示"
     echo "4. 验证 PDF/EPUB 元数据读写功能"
-    echo "5. 验证 Google Drive 集成 (授权/上传)"
-    echo "6. 如果一切正常，复制到应用程序文件夹:"
+    echo "5. 如果一切正常，复制到应用程序文件夹:"
     echo "   rm -rf /Applications/BookOrganizer.app && cp -R dist/BookOrganizer.app /Applications/"
     echo ""
     if [ ! -f "assets/icon.icns" ] && [ -f "assets/icon.png" ]; then
@@ -301,8 +273,7 @@ if [ -d "dist/BookOrganizer.app" ]; then
         echo ""
     fi
     echo "ℹ️  优化说明:"
-    echo "此版本已支持 Google Drive 集成。"
-    echo "已自动清理冗余的 Google API 定义文件以减小体积。"
+    echo "此版本不包含云盘 SDK；PDF 导出文件可手动导入外部服务。"
     echo "如需进一步优化，可考虑使用 UPX 压缩。"
     echo "=========================================="
 else

@@ -5,17 +5,6 @@
  * 子模块: libraryBatch/selection.js, libraryBatch/modal.js, libraryBatch/process.js
  */
 
-// ============================================================================
-// 辅助函数
-// ============================================================================
-
-/**
- * 检查 Google Drive 是否已连接
- */
-window.isGDriveConnected = () => {
-    return typeof isGoogleDriveConnected !== 'undefined' && isGoogleDriveConnected;
-};
-
 /**
  * 刷新库树视图（保持选择状态）
  * 这是一个占位符，实际实现在 ui.js 中

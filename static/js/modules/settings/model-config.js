@@ -266,12 +266,6 @@ window.saveBetaConfig = async () => {
         currentConfig.beta_features.enable_metadata_write_pdf = document.getElementById('beta-metadata-write-pdf').checked;
         currentConfig.beta_features.enable_summary_write_pdf = document.getElementById('beta-summary-write-pdf').checked;
 
-        if (!currentConfig.beta_features.google_drive) currentConfig.beta_features.google_drive = {};
-        const gdriveFolder = document.getElementById('gdrive-folder-select');
-        const gdriveAuto = document.getElementById('gdrive-auto-upload');
-        currentConfig.beta_features.google_drive.target_folder_id = gdriveFolder ? gdriveFolder.value : '';
-        currentConfig.beta_features.google_drive.auto_upload = gdriveAuto ? gdriveAuto.checked : false;
-
         const activeBtn = document.querySelector('#beta-data-priority-group .btn-toggle.active');
         currentConfig.beta_features.data_priority = activeBtn ? activeBtn.dataset.value : 'database';
 

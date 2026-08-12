@@ -155,15 +155,6 @@ class ConvertToPdfRequest(BaseModel):
     output_dir: Optional[str] = None
 
 
-class DriveUploadRequest(BaseModel):
-    file_path: str
-    folder_id: Optional[str] = None
-
-
-class DirectUploadRequest(BaseModel):
-    file_path: str
-
-
 class ExecuteSyncRequest(BaseModel):
     operations: List[Dict[str, Any]]
 

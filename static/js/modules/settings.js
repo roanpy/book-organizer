@@ -3,7 +3,7 @@
  * 
  * 元数据识别、文件名模板、目录选择器、快捷开关等。
  * 依赖: state.js, api.js
- * 子模块: settings/model-config.js, settings/google-drive.js, settings/cloud-sync.js
+ * 子模块: settings/model-config.js, settings/cloud-sync.js
  */
 
 // ============================================================================
