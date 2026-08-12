@@ -66,12 +66,31 @@ SECRET_FIELD_KEYS = {
 }
 
 
-def _read_json_file(path):
-    fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+def _open_regular_file_fd(path):
+    """Open one regular, single-link file without following its final path."""
+    directory = os.path.realpath(os.path.abspath(os.path.dirname(path) or "."))
+    directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    directory_flags |= getattr(os, "O_NOFOLLOW", 0)
+    directory_fd = os.open(directory, directory_flags)
     try:
-        file_stat = os.fstat(fd)
-        if not stat.S_ISREG(file_stat.st_mode) or file_stat.st_nlink != 1:
-            raise ValueError("unsafe configuration file")
+        fd = os.open(
+            os.path.basename(path),
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+            dir_fd=directory_fd,
+        )
+    finally:
+        os.close(directory_fd)
+
+    file_stat = os.fstat(fd)
+    if not stat.S_ISREG(file_stat.st_mode) or file_stat.st_nlink != 1:
+        os.close(fd)
+        raise ValueError("unsafe regular file")
+    return fd
+
+
+def _read_json_file(path):
+    fd = _open_regular_file_fd(path)
+    try:
         with os.fdopen(fd, "r", encoding="utf-8") as f:
             fd = -1
             return json.load(f)

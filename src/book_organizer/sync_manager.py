@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from .config import (
+    _open_regular_file_fd,
     _read_json_file,
     _write_json_file,
     load_config,
@@ -82,6 +83,9 @@ class DBSyncManager:
         if os.path.exists(db_path):
             # [Backup Fix] Use rolling backup (single file) to prevent disk usage bloat
             try:
+                db_path = resolve_regular_file_path(
+                    os.path.dirname(db_path), os.path.basename(db_path)
+                )
                 bak_path = resolve_regular_file_path(
                     os.path.dirname(db_path), os.path.basename(db_path) + ".backup"
                 )
@@ -123,7 +127,18 @@ class DBSyncManager:
                             dir=os.path.dirname(db_path),
                         )
                         os.close(fd)
-                    shutil.copy2(db_path, temp_path)
+                    source_fd = _open_regular_file_fd(db_path)
+                    try:
+                        with os.fdopen(source_fd, "rb") as source_file, open(
+                            temp_path, "wb"
+                        ) as destination_file:
+                            source_fd = -1
+                            shutil.copyfileobj(source_file, destination_file)
+                            destination_file.flush()
+                            os.fsync(destination_file.fileno())
+                    finally:
+                        if source_fd >= 0:
+                            os.close(source_fd)
                     os.replace(temp_path, bak_path)
                     temp_path = ""
                     return bak_path

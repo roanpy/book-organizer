@@ -3,6 +3,7 @@ import datetime
 import os
 import shutil
 import socket
+import stat
 import tempfile
 from typing import Any, Dict
 
@@ -15,6 +16,7 @@ from book_organizer.ai_engines.dispatcher import (
 )
 from book_organizer.config import (
     CONFIG_FILE,
+    _open_regular_file_fd,
     _read_json_file,
     _write_json_file,
     get_default_ai_config,
@@ -97,14 +99,31 @@ def _copy_database_file(source: str, destination: str) -> None:
     )
     if os.path.realpath(source) == os.path.realpath(destination):
         return
-    fd, temp_path = tempfile.mkstemp(
+    source_fd = _open_regular_file_fd(source)
+    source_stat = os.fstat(source_fd)
+    temp_fd, temp_path = tempfile.mkstemp(
         prefix=".book-organizer-db-", dir=os.path.dirname(destination)
     )
-    os.close(fd)
     try:
-        shutil.copy2(source, temp_path)
+        with os.fdopen(source_fd, "rb") as source_file, os.fdopen(
+            temp_fd, "wb"
+        ) as destination_file:
+            source_fd = -1
+            temp_fd = -1
+            shutil.copyfileobj(source_file, destination_file)
+            destination_file.flush()
+            os.fsync(destination_file.fileno())
+        os.chmod(temp_path, stat.S_IMODE(source_stat.st_mode))
+        os.utime(
+            temp_path,
+            ns=(source_stat.st_atime_ns, source_stat.st_mtime_ns),
+        )
         os.replace(temp_path, destination)
     finally:
+        if source_fd >= 0:
+            os.close(source_fd)
+        if temp_fd >= 0:
+            os.close(temp_fd)
         if os.path.exists(temp_path):
             os.remove(temp_path)
 

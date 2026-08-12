@@ -125,7 +125,7 @@ def test_database_backup_failure_preserves_previous_backup(monkeypatch, tmp_path
     manager = DBSyncManager.__new__(DBSyncManager)
     manager.db = type("FakeDb", (), {"db_path": str(db_path)})()
     monkeypatch.setattr(
-        "book_organizer.sync_manager.shutil.copy2",
+        "book_organizer.sync_manager.shutil.copyfileobj",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("failed")),
     )
 
