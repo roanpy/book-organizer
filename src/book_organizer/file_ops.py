@@ -191,6 +191,44 @@ def get_target_categories(target_dir: str) -> List[str]:
     return sorted(list(set(categories)))
 
 
+def _parse_filename_parts(name: str) -> Dict[str, str]:
+    """Parse the supported filename shapes with bounded string operations."""
+    country_start = name.find("[[")
+    if country_start > 0:
+        prefix = name[:country_start].rstrip()
+        country_end = name.find("]]", country_start + 2)
+        if prefix.endswith("-") and country_end > country_start + 2:
+            title = prefix[:-1].strip()
+            country = name[country_start + 2 : country_end].strip()
+            author = name[country_end + 2 :].strip()
+            if title and country and author:
+                return {"title": title, "author": f"[{country}] {author}"}
+
+    if name.endswith("]"):
+        author_start = name.rfind("[")
+        prefix = name[:author_start].rstrip() if author_start > 0 else ""
+        if prefix.endswith("-"):
+            title = prefix[:-1].strip()
+            author = name[author_start + 1 : -1].strip()
+            if title and author:
+                return {"title": title, "author": author}
+
+    if name.startswith(("[", "(")):
+        closing = "]" if name[0] == "[" else ")"
+        author_end = name.find(closing, 1)
+        if author_end > 1:
+            author = name[1:author_end].strip()
+            title = name[author_end + 1 :].strip()
+            if title and author:
+                return {"title": title, "author": author}
+
+    if name.count(" - ") == 1:
+        title, author = (part.strip() for part in name.split(" - ", 1))
+        if title and author:
+            return {"title": title, "author": author}
+    return {"title": name}
+
+
 def parse_filename(filename: str) -> str:
     """尝试从文件名中用正则表达式提取书名和作者。
 
@@ -209,29 +247,10 @@ def parse_filename(filename: str) -> str:
     """
     name_only = Path(filename).stem
 
-    # 模式1: [[国家]] 作者 - 书名 或 书名 - [[国家]] 作者
-    match = re.search(r"^(.+?)\s*-\s*\[\[(.+?)\]\]\s*(.+)$", name_only)
-    if match:
-        title = match.group(1).strip()
-        country = match.group(2).strip()
-        author = match.group(3).strip()
-        return f"书名: '{title}', 作者: '[{country}] {author}'"
-
-    # 模式2: 书名 - [作者]
-    match = re.search(r"^(.+?)\s*-\s*\[(.+?)\]$", name_only)
-    if match:
-        title = match.group(1).strip()
-        author = match.group(2).strip()
-        return f"书名: '{title}', 作者: '{author}'"
-
-    # 模式3: [作者] 书名
-    match = re.search(r"^[\[\(](.+?)[\]\)](.+)", name_only)
-    if match:
-        author = match.group(1).strip()
-        title = match.group(2).strip()
-        return f"书名: '{title}', 作者: '{author}'"
-
-    return f"文件名: '{name_only}'"
+    parsed = _parse_filename_parts(name_only)
+    if parsed.get("author"):
+        return f"书名: '{parsed['title']}', 作者: '{parsed['author']}'"
+    return f"文件名: '{parsed['title']}'"
 
 
 def parse_filename_to_dict(filename: str) -> Dict[str, Any]:
@@ -248,36 +267,7 @@ def parse_filename_to_dict(filename: str) -> Dict[str, Any]:
     """
     name_only = Path(filename).stem
 
-    # Cleaning: remove common garbage suffix/prefix if needed
-    # (Optional)
-
-    # 模式1: [[国家]] 作者 - 书名 或 书名 - [[国家]] 作者
-    match = re.search(r"^(.+?)\s*-\s*\[\[(.+?)\]\]\s*(.+)$", name_only)
-    if match:
-        return {
-            "title": match.group(1).strip(),
-            "author": f"[{match.group(2).strip()}] {match.group(3).strip()}",
-        }
-
-    # 模式2: 书名 - [作者]
-    match = re.search(r"^(.+?)\s*-\s*\[(.+?)\]$", name_only)
-    if match:
-        return {"title": match.group(1).strip(), "author": match.group(2).strip()}
-
-    # 模式3: [作者] 书名
-    match = re.search(r"^[\[\(](.+?)[\]\)](.+)", name_only)
-    if match:
-        return {"title": match.group(2).strip(), "author": match.group(1).strip()}
-
-    # 模式4: 书名 作者 (最后尝试)
-    # 书名 - 作者
-    if " - " in name_only:
-        parts = name_only.split(" - ")
-        if len(parts) == 2:
-            return {"title": parts[0].strip(), "author": parts[1].strip()}
-
-    # 默认: 整个文件名作为标题
-    return {"title": name_only}
+    return _parse_filename_parts(name_only)
 
 
 def get_cover_image(file_path: str) -> Optional[bytes]:

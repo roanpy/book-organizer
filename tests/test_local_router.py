@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 import book_organizer.routers.local as local_router
 from server import app
 
-client = TestClient(app)
+client = TestClient(app, base_url="http://127.0.0.1:18000")
 
 
 def test_local_suggest_directories_returns_structured_response(monkeypatch):

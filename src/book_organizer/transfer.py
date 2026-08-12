@@ -49,17 +49,29 @@ def _find_heuristic_matches(filename_info, categories):
     matches = []
 
     # 1. 精准实体匹配 (作者/系列)
-    author_match = re.search(r"作者:\s*'([^']+)'", filename_info)
-    series_match = re.search(
-        r"[（(]([^）)]+)[）)]",
-        Path(filename_info).stem if "/" not in filename_info else filename_info,
+    author_marker = "作者: '"
+    author_start = filename_info.find(author_marker)
+    author_end = filename_info.find("'", author_start + len(author_marker))
+    author = (
+        filename_info[author_start + len(author_marker) : author_end].strip()
+        if author_start >= 0 and author_end > author_start + len(author_marker)
+        else ""
     )
 
+    series_text = Path(filename_info).stem if "/" not in filename_info else filename_info
+    series = ""
+    for opening, closing in (("(", ")"), ("（", "）")):
+        start = series_text.find(opening)
+        end = series_text.find(closing, start + 1) if start >= 0 else -1
+        if start >= 0 and end > start + 1:
+            series = series_text[start + 1 : end].strip()
+            break
+
     entities_to_check = []
-    if author_match:
-        entities_to_check.append(author_match.group(1).strip())
-    if series_match:
-        entities_to_check.append(series_match.group(1).strip())
+    if author:
+        entities_to_check.append(author)
+    if series:
+        entities_to_check.append(series)
 
     for entity in entities_to_check:
         if len(entity) > 1:

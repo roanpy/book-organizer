@@ -323,19 +323,24 @@ def lookup_via_calibre(
     try:
         # 清理标题
         clean_title = title.split("(")[0].split("[")[0].strip().replace("_", " ")
+        clean_title = "".join(ch for ch in clean_title if ch.isprintable())[:500]
+        if not clean_title:
+            return None
 
-        cmd = [calibre_path, "--title", clean_title, "--timeout", "30", "--opf"]
+        cmd = [calibre_path, f"--title={clean_title}", "--timeout=30", "--opf"]
         if author:
             # 清理作者名 (移除括号内的外文名)
             clean_author = author.split("(")[0].split("[")[0].strip()
-            cmd.extend(["--author", clean_author])
+            clean_author = "".join(ch for ch in clean_author if ch.isprintable())[:300]
+            if clean_author:
+                cmd.append(f"--author={clean_author}")
 
         # 运行命令
         # 注意：Calibre 输出可能包含日志在 stderr，OPF 内容在 stdout
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=35)
 
         if result.returncode != 0:
-            print(f"Calibre lookup failed: {result.stderr[:200]}")
+            print("Calibre lookup failed")
             return None
 
         # 解析 OPF (XML)

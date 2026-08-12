@@ -19,6 +19,7 @@ from book_organizer.file_ops import resolve_file_path
 from book_organizer.library_path_repair import path_is_in_book_roots, path_is_inside
 from book_organizer.toc_extractor import extract_toc
 
+from . import internal_error
 from .models import (
     MoveRequest,
     RenameAndMoveRequest,
@@ -69,7 +70,7 @@ def move_book(request: MoveRequest) -> Dict[str, Any]:
         )
         return {"success": True, "message": f"Moved to {request.destination}"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error("move book", e, "移动失败，请查看应用日志")
 
 
 @router.post("/api/rename_and_move")
@@ -189,7 +190,7 @@ def rename_only(request: RenameOnlyRequest):
                     os.rename(temp_path, source_path)
                 except OSError:
                     pass
-            raise HTTPException(status_code=500, detail=f"重命名失败: {str(e)}")
+            raise internal_error("rename book", e, "重命名失败，请查看应用日志")
 
         db = get_db()
         old_filename = os.path.basename(source_path)
@@ -255,7 +256,7 @@ def rename_only(request: RenameOnlyRequest):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"重命名失败: {str(e)}")
+        raise internal_error("save renamed book", e, "重命名失败，请查看应用日志")
 
 
 @router.post("/api/delete")
@@ -278,7 +279,7 @@ def delete_book(request: SkipRequest) -> Dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error("delete book", e, "删除失败，请查看应用日志")
 
 
 @router.post("/api/skip")
@@ -287,7 +288,7 @@ def skip_book(request: SkipRequest) -> Dict[str, Any]:
         save_history_item(request.filename, "skipped")
         return {"success": True, "message": "Book skipped"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error("skip book", e, "更新状态失败，请查看应用日志")
 
 
 @router.post("/api/unskip")
@@ -296,7 +297,7 @@ def unskip_book(request: SkipRequest) -> Dict[str, Any]:
         save_history_item(request.filename, "pending")
         return {"success": True, "message": "Book unskipped"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error("unskip book", e, "更新状态失败，请查看应用日志")
 
 
 @router.post("/api/write_epub_metadata")
@@ -313,8 +314,10 @@ def handle_write_epub_metadata(request: WriteMetadataRequest):
             return {"success": True, "message": "EPUB元数据写入成功"}
         else:
             raise HTTPException(status_code=500, detail="EPUB元数据写入失败")
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"写入失败: {str(e)}")
+        raise internal_error("write EPUB metadata", e, "EPUB 元数据写入失败")
 
 
 @router.post("/api/write_pdf_metadata")
@@ -331,5 +334,7 @@ def handle_write_pdf_metadata(request: WriteMetadataRequest):
             return {"success": True, "message": "PDF元数据写入成功"}
         else:
             raise HTTPException(status_code=500, detail="PDF元数据写入失败")
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"写入失败: {str(e)}")
+        raise internal_error("write PDF metadata", e, "PDF 元数据写入失败")

@@ -110,24 +110,38 @@ def parse_book_name(filename: str) -> Dict[str, Optional[str]]:
     edition = None
 
     # 模式 1: [作者] 书名
-    match1 = re.match(r"\[([^\]]+)\]\s*(.+)", name_without_ext)
-    if match1:
-        author = match1.group(1).strip()
-        title = match1.group(2).strip()
+    author_end = name_without_ext.find("]", 1) if name_without_ext.startswith("[") else -1
+    if author_end > 1:
+        author = name_without_ext[1:author_end].strip()
+        title = name_without_ext[author_end + 1 :].strip()
     else:
         # 模式 2: 书名 - 作者
-        match2 = re.match(r"(.+?)\s*[-–—]\s*(.+)", name_without_ext)
-        if match2:
-            title = match2.group(1).strip()
-            author = match2.group(2).strip()
+        separator = next(
+            (index for index, char in enumerate(name_without_ext) if char in "-–—"),
+            -1,
+        )
+        if separator > 0:
+            title = name_without_ext[:separator].strip()
+            author = name_without_ext[separator + 1 :].strip()
         else:
             title = name_without_ext
 
     # 提取版本/版次
-    edition_match = re.search(r"[（(]第?(\d+)版[）)]", title or "")
-    if edition_match:
-        edition = edition_match.group(1)
-        title = re.sub(r"\s*[（(]第?\d+版[）)]", "", title or "").strip()
+    for opening, closing in (("(", ")"), ("（", "）")):
+        start = (title or "").find(opening)
+        while start >= 0:
+            end = (title or "").find(closing, start + 1)
+            if end < 0:
+                break
+            marker = (title or "")[start + 1 : end]
+            number = marker.removeprefix("第").removesuffix("版")
+            if marker.endswith("版") and number.isdigit():
+                edition = number
+                title = ((title or "")[:start] + (title or "")[end + 1 :]).strip()
+                break
+            start = (title or "").find(opening, end + 1)
+        if edition:
+            break
 
     return {"title": title, "author": author, "edition": edition}
 

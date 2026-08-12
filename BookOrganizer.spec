@@ -117,7 +117,7 @@ app = BUNDLE(
     icon='assets/icon.icns',
     bundle_identifier='com.peter.bookorganizer',
     info_plist={
-        'CFBundleShortVersionString': '0.8.3',
-        'CFBundleVersion': '0.8.3',
+        'CFBundleShortVersionString': '0.8.4',
+        'CFBundleVersion': '0.8.4',
     },
 )

@@ -18,6 +18,8 @@ from book_organizer.summary_utils import (
 )
 from book_organizer.toc_extractor import extract_toc
 
+from . import log_internal_error
+
 router = APIRouter(tags=["metadata"])
 
 
@@ -61,7 +63,7 @@ async def get_book_metadata(filename: str) -> Dict[str, Any]:
                     "metadata" if saved_summary_text == embedded_summary else "database"
                 )
         except Exception as e:
-            print(f"Error loading enhanced summary: {e}")
+            log_internal_error("load enhanced summary", e)
             if embedded_summary:
                 metadata["db_summary"] = embedded_summary
                 metadata["embedded_summary"] = embedded_summary
@@ -89,7 +91,7 @@ def get_existing_enhanced_summary(filename: str):
                 metadata = extract_metadata(file_path) or {}
                 embedded_summary = extract_embedded_enhanced_summary(metadata)
         except Exception as e:
-            print(f"Error reading embedded summary: {e}")
+            log_internal_error("read embedded summary", e)
 
         summary_text = choose_enhanced_summary(
             db_summary,
@@ -113,7 +115,8 @@ def get_existing_enhanced_summary(filename: str):
             }
         return {"success": False, "message": "No summary found"}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        log_internal_error("load enhanced summary", e)
+        return {"success": False, "error": "增强简介读取失败"}
 
 
 @router.get("/api/toc_query")
@@ -147,4 +150,5 @@ def get_existing_toc(filename: str):
 
         return {"success": False, "message": "No TOC in database or metadata"}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        log_internal_error("load table of contents", e)
+        return {"success": False, "error": "目录读取失败"}

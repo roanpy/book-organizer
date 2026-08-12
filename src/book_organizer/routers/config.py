@@ -36,6 +36,7 @@ from book_organizer.file_ops import (
 )
 from book_organizer.gemini_client import configure_genai
 
+from . import internal_error
 from .models import (
     ConfigUpdate,
     ModelRequest,
@@ -558,7 +559,7 @@ def update_ai_config(ai_config: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
         save_ai_config(ai_config)
         return {"success": True, "message": "AI配置已更新"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error("save AI config", e, "AI 配置保存失败")
 
 
 @router.get("/api/user_preferences")
@@ -599,11 +600,9 @@ def update_user_preferences(prefs: UserPreferencesUpdate) -> Dict[str, Any]:
             config["user_preferences"]["tocEnabled"] = prefs.tocEnabled
 
         save_config(config)
-        print(f"✓ User preferences saved: {config['user_preferences']}")
-
         return {"success": True, "message": "偏好设置已保存"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error("save user preferences", e, "偏好设置保存失败")
 
 
 @router.post("/api/ai_config/optimize_rules")
@@ -616,7 +615,7 @@ def optimize_rules(request: OptimizeRulesRequest) -> Dict[str, Any]:
         )
         return {"success": True, "optimized_rules": optimized}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error("optimize AI rules", e, format_ai_error(e))
 
 
 @router.post("/api/config/sync/validate")

@@ -24,6 +24,8 @@ CONVERTIBLE_FORMATS = {
     ".lrf",
     ".pdb",
 }
+CALIBRE_TOOL_NAMES = frozenset({"ebook-convert", "fetch-ebook-metadata"})
+PAPER_SIZES = frozenset({"a4", "a5", "letter", "legal"})
 
 
 # Calibre 在不同操作系统上的默认安装路径
@@ -49,6 +51,9 @@ CALIBRE_BIN_DIRS = {
 
 def find_calibre_tool(tool_name: str) -> tuple[bool, str]:
     """Find a Calibre CLI tool without bundling Calibre into the app."""
+    if tool_name not in CALIBRE_TOOL_NAMES:
+        return False, "不支持的 Calibre 工具"
+
     configured_dir = os.environ.get("BOOK_ORGANIZER_CALIBRE_BIN_DIR", "").strip()
     dirs_to_check = [configured_dir] if configured_dir else []
     dirs_to_check.extend(CALIBRE_BIN_DIRS.get(platform.system(), []))
@@ -61,19 +66,26 @@ def find_calibre_tool(tool_name: str) -> tuple[bool, str]:
     elif tool_name == "fetch-ebook-metadata":
         path_from_env = os.environ.get("BOOK_ORGANIZER_FETCH_EBOOK_METADATA", "").strip()
 
-    if path_from_env and os.path.isfile(path_from_env) and os.access(path_from_env, os.X_OK):
-        return True, path_from_env
+    def validated(path: str) -> str:
+        resolved = os.path.realpath(os.path.abspath(os.path.expanduser(path)))
+        return resolved if os.path.isfile(resolved) and os.access(resolved, os.X_OK) else ""
+
+    explicit_path = validated(path_from_env) if path_from_env else ""
+    if explicit_path:
+        return True, explicit_path
 
     path_from_path = shutil.which(executable_name)
-    if path_from_path:
-        return True, path_from_path
+    validated_path = validated(path_from_path) if path_from_path else ""
+    if validated_path:
+        return True, validated_path
 
     for bin_dir in dirs_to_check:
         if not bin_dir:
             continue
         candidate = os.path.join(os.path.expanduser(bin_dir), executable_name)
-        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
-            return True, candidate
+        validated_path = validated(candidate)
+        if validated_path:
+            return True, validated_path
 
     return False, f"未找到 Calibre {tool_name} 工具。请安装 Calibre 或设置工具路径。"
 
@@ -148,6 +160,9 @@ def convert_to_pdf(
             "message": str (状态/错误信息)
         }
     """
+    if paper_size not in PAPER_SIZES:
+        return {"success": False, "message": "不支持的 PDF 纸张尺寸"}
+
     # 验证输入文件
     input_path = os.path.abspath(input_path)
     if not os.path.isfile(input_path):
@@ -199,16 +214,18 @@ def convert_to_pdf(
                 "message": f"转换成功: {pdf_filename}",
             }
         else:
-            error_msg = result.stderr.strip() if result.stderr else "未知错误"
+            error_msg = result.stderr.strip() if result.stderr else ""
             # 检查常见错误
-            if "DRM" in error_msg.upper():
-                error_msg = "文件可能受 DRM 保护，无法转换"
-            return {"success": False, "message": f"转换失败: {error_msg}"}
+            has_drm = "DRM" in error_msg.upper()
+            return {
+                "success": False,
+                "message": "文件可能受 DRM 保护，无法转换" if has_drm else "转换失败，请查看应用日志",
+            }
 
     except subprocess.TimeoutExpired:
         return {"success": False, "message": "转换超时（超过5分钟）"}
-    except Exception as e:
-        return {"success": False, "message": f"转换异常: {str(e)}"}
+    except Exception:
+        return {"success": False, "message": "转换异常，请查看应用日志"}
 
 
 # 向后兼容的别名

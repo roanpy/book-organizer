@@ -39,6 +39,22 @@ def test_find_calibre_tool_honors_explicit_env(monkeypatch, tmp_path):
     assert path == str(tool)
 
 
+def test_find_calibre_tool_rejects_unknown_tool_name():
+    installed, message = pdf_converter.find_calibre_tool("arbitrary-tool")
+
+    assert installed is False
+    assert message == "不支持的 Calibre 工具"
+
+
+def test_convert_to_pdf_rejects_unknown_paper_size(tmp_path):
+    source = tmp_path / "book.epub"
+    source.write_text("book", encoding="utf-8")
+
+    result = pdf_converter.convert_to_pdf(str(source), paper_size="--help")
+
+    assert result == {"success": False, "message": "不支持的 PDF 纸张尺寸"}
+
+
 def test_calibre_status_detail_is_backward_compatible(monkeypatch):
     monkeypatch.setattr(
         pdf_converter, "check_calibre_installed", lambda: (True, os.devnull)

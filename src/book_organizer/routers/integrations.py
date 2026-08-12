@@ -40,10 +40,13 @@ def convert_to_pdf_endpoint(request: ConvertToPdfRequest):
             raise HTTPException(status_code=400, detail="已经是 PDF 格式，无需转换")
         raise HTTPException(status_code=400, detail=f"不支持的格式: {ext}")
 
-    output_dir = request.output_dir
-    if not output_dir:
-        beta_features = config.get("beta_features", {})
-        output_dir = beta_features.get("pdf_export_dir", "")
+    beta_features = config.get("beta_features", {})
+    output_dir = beta_features.get("pdf_export_dir", "")
+    if request.output_dir:
+        requested_dir = os.path.realpath(os.path.expanduser(request.output_dir))
+        configured_dir = os.path.realpath(os.path.expanduser(output_dir)) if output_dir else ""
+        if not configured_dir or requested_dir != configured_dir:
+            raise HTTPException(status_code=400, detail="请先在设置中配置 PDF 导出目录")
 
     output_dir = output_dir if output_dir else None
 

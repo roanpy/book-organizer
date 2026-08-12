@@ -491,8 +491,9 @@ function renderAnalysisResult(data, enhancedSummary = null) {
             li.className = 'suggestion-item';
             li.innerHTML = `
                 <span class="path-text">${escapeHtml(path)}</span>
-                <button class="btn-move" onclick="moveBook('${path.replace(/'/g, "\\'")}')">移动</button>
+                <button class="btn-move">移动</button>
             `;
+            li.querySelector('.btn-move').addEventListener('click', () => moveBook(path));
             suggestionListEl.appendChild(li);
         });
     } else {
@@ -1139,12 +1140,15 @@ function renderRecursiveTree(node, container, level, parentPath = '') {
         folderDiv.style.paddingLeft = `${15 + (level * 15)}px`;
 
         folderDiv.innerHTML = `
-            <input type="checkbox" class="folder-checkbox" data-folder-path="${escapeHtml(folderPath)}" onclick="event.stopPropagation(); toggleFolderSelection('${folderPath.replace(/'/g, "\\'")}', this.checked)">
+            <input type="checkbox" class="folder-checkbox" data-folder-path="${escapeHtml(folderPath)}">
             <span class="folder-icon"><i class="fa-solid fa-folder"></i></span>
             <span class="folder-name" title="${escapeHtml(folderName)}">${escapeHtml(folderName)}</span>
             <span class="folder-count">${childNode.totalCount}</span>
             <i class="fa-solid fa-chevron-right folder-arrow"></i>
         `;
+        const folderCheckbox = folderDiv.querySelector('.folder-checkbox');
+        folderCheckbox.addEventListener('click', event => event.stopPropagation());
+        folderCheckbox.addEventListener('change', () => toggleFolderSelection(folderPath, folderCheckbox.checked));
 
         const subItemsDiv = document.createElement('div');
         subItemsDiv.id = folderId;
@@ -1230,7 +1234,7 @@ function renderRecursiveTree(node, container, level, parentPath = '') {
 
         // 多选 checkbox
         const isSelected = window.selectedLibraryBooks && window.selectedLibraryBooks.has(book.path);
-        const checkboxHtml = `<input type="checkbox" class="book-checkbox" data-path="${escapeHtml(book.path)}" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleBookSelection('${book.path.replace(/'/g, "\\'")}', this.checked)">`;
+        const checkboxHtml = `<input type="checkbox" class="book-checkbox" data-path="${escapeHtml(book.path)}" ${isSelected ? 'checked' : ''}>`;
 
         itemDiv.innerHTML = `
             ${checkboxHtml}
@@ -1238,6 +1242,9 @@ function renderRecursiveTree(node, container, level, parentPath = '') {
             <span class="book-name-text" title="${escapeHtml(book.name)}">${escapeHtml(book.name)}</span>
             ${enhancedIcon}${tocIcon}
         `;
+        const bookCheckbox = itemDiv.querySelector('.book-checkbox');
+        bookCheckbox.addEventListener('click', event => event.stopPropagation());
+        bookCheckbox.addEventListener('change', () => toggleBookSelection(book.path, bookCheckbox.checked));
 
         itemDiv.onclick = (e) => {
             e.stopPropagation();

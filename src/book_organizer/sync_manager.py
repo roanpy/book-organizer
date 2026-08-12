@@ -17,6 +17,22 @@ from .library_path_repair import inspect_database_connection, path_is_inside
 logger = logging.getLogger(__name__)
 
 
+def _record_path_key(stored_path: str, target_dir: str) -> str:
+    stored_path = (stored_path or "").strip()
+    if not stored_path:
+        return ""
+    absolute_path = (
+        stored_path
+        if os.path.isabs(stored_path)
+        else os.path.join(target_dir, stored_path)
+    )
+    if path_is_inside(absolute_path, target_dir):
+        stored_path = os.path.relpath(
+            os.path.realpath(absolute_path), os.path.realpath(target_dir)
+        )
+    return os.path.normcase(os.path.normpath(stored_path))
+
+
 class DBSyncManager:
     def __init__(self):
         self.db = get_db()
@@ -154,17 +170,7 @@ class DBSyncManager:
             for r in rows:
                 stored_path = (r.get("file_path") or "").strip()
                 if stored_path:
-                    absolute_path = (
-                        stored_path
-                        if os.path.isabs(stored_path)
-                        else os.path.join(self.target_dir, stored_path)
-                    )
-                    if path_is_inside(absolute_path, self.target_dir):
-                        stored_path = os.path.relpath(
-                            os.path.realpath(absolute_path),
-                            os.path.realpath(self.target_dir),
-                        )
-                    path_groups[os.path.normcase(os.path.normpath(stored_path))].append(r)
+                    path_groups[_record_path_key(stored_path, self.target_dir)].append(r)
                 else:
                     records_to_check.append(r)
 
@@ -172,7 +178,10 @@ class DBSyncManager:
             for group in path_groups.values():
                 if len(group) > 1:
                     # 倒序排列
-                    group.sort(key=lambda x: str(x["updated_at"]), reverse=True)
+                    group.sort(
+                        key=lambda x: (str(x["updated_at"] or ""), int(x["id"])),
+                        reverse=True,
+                    )
                     keep = group[0]
                     remove = group[1:]
 
@@ -331,6 +340,8 @@ class DBSyncManager:
         """
         if not selected_ops:
             return {"success": True, "message": "No operations selected"}
+        if not self.target_dir or not os.path.isdir(self.target_dir):
+            return {"success": False, "message": "Target directory not found"}
         self._refresh_db_connection()
 
         bak_file = self.backup_db()
@@ -340,29 +351,65 @@ class DBSyncManager:
 
         with self.db._db._get_conn() as conn:
             cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id, file_path, updated_at FROM enhanced_summaries"
+            )
+            records = cursor.fetchall()
+            record_paths = {record_id: file_path for record_id, file_path, _ in records}
+            path_records = defaultdict(list)
+            for record_id, file_path, updated_at in records:
+                path_key = _record_path_key(file_path, self.target_dir)
+                if path_key:
+                    path_records[path_key].append((record_id, updated_at))
+            duplicate_delete_ids = {
+                record_id
+                for group in path_records.values()
+                if len(group) > 1
+                for record_id, _ in group
+                if record_id
+                != max(
+                    group,
+                    key=lambda item: (str(item[1] or ""), int(item[0])),
+                )[0]
+            }
+            allowed_extensions = get_configured_book_extensions(load_config())
 
             for op in selected_ops:
-                rid = op["record_id"]
-                otype = op["type"]
+                rid = op.get("record_id")
+                otype = op.get("type")
 
                 try:
+                    if not isinstance(rid, int) or otype not in {
+                        "DELETE_DUPLICATE",
+                        "UPDATE",
+                    }:
+                        raise ValueError("invalid sync operation")
                     cursor.execute("SAVEPOINT sync_operation")
                     if otype == "DELETE_DUPLICATE":
+                        if rid not in duplicate_delete_ids:
+                            raise ValueError("record is not a removable duplicate")
                         cursor.execute(
                             "DELETE FROM enhanced_summaries WHERE id=?", (rid,)
                         )
+                        if cursor.rowcount != 1:
+                            raise ValueError("record not found")
+                        duplicate_delete_ids.discard(rid)
                         deletes += 1
 
                     elif otype == "UPDATE":
-                        data = op["data"]
-                        new_name = data["new_filename"]
-                        full_path = data["new_path"]
-
-                        # 如果适用，转换为相对路径
-                        save_path = full_path
-                        if path_is_inside(full_path, self.target_dir):
-                            save_path = os.path.relpath(full_path, self.target_dir)
-                        old_path = data.get("old_path") or ""
+                        data = op.get("data") or {}
+                        full_path = os.path.realpath(str(data.get("new_path") or ""))
+                        if (
+                            not path_is_inside(full_path, self.target_dir)
+                            or not os.path.isfile(full_path)
+                            or not full_path.lower().endswith(allowed_extensions)
+                        ):
+                            raise ValueError("invalid library path")
+                        new_name = os.path.basename(full_path)
+                        save_path = os.path.relpath(full_path, self.target_dir)
+                        if rid not in record_paths:
+                            raise ValueError("record not found")
+                        old_path = record_paths[rid] or ""
 
                         # 尝试更新
                         try:
@@ -403,7 +450,12 @@ class DBSyncManager:
                         cursor.execute("RELEASE sync_operation")
                     except sqlite3.Error:
                         pass
-                    logger.error(f"Error executing op {op}: {e}")
+                    logger.error(
+                        "Sync operation rejected: type=%s id=%s error=%s",
+                        otype,
+                        rid,
+                        type(e).__name__,
+                    )
                     errors += 1
 
             conn.commit()
@@ -682,6 +734,8 @@ class DBSyncManager:
         Delete a file from filesystem and cleanup DB.
         """
         try:
+            if not self.target_dir or not os.path.isdir(self.target_dir):
+                return {"success": False, "message": "Target directory not found"}
             # 1. Resolve path (security check: must be in target_dir)
             if not os.path.isabs(path):
                 path = os.path.join(self.target_dir, path)
@@ -718,8 +772,8 @@ class DBSyncManager:
 
             return {"success": True, "message": "已删除"}
         except Exception as e:
-            logger.error(f"Delete failed: {e}")
-            return {"success": False, "message": str(e)}
+            logger.error("Delete failed (%s)", type(e).__name__)
+            return {"success": False, "message": "删除失败，请查看应用日志"}
 
 
 # Global Instance (lazy initialization to avoid DB connection at import time)

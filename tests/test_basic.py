@@ -8,7 +8,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from server import app
 
-client = TestClient(app)
+client = TestClient(app, base_url="http://127.0.0.1:18000")
 
 
 def test_read_main():
@@ -36,3 +36,15 @@ def test_list_models_no_auth():
     assert response.status_code == 200
     data = response.json()
     assert "models" in data or "error" in data
+
+
+def test_local_api_rejects_untrusted_host_and_origin():
+    assert client.get("/api/config", headers={"host": "attacker.example"}).status_code == 400
+    assert (
+        client.get("/api/config", headers={"origin": "https://attacker.example"}).status_code
+        == 403
+    )
+    assert (
+        client.get("/api/config", headers={"origin": "http://localhost:18000"}).status_code
+        == 200
+    )
