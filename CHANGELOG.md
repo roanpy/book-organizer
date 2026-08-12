@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Updated vulnerable pinned Python dependencies to patched compatible releases.
+- Pinned GitHub Actions to immutable commits and grouped coordinated Dependabot updates.
+
 ## 0.8.3
 
 - Published a clean, history-free open-source edition.

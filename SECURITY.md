@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-Please report security issues privately through GitHub Security Advisories. Do not open a public issue containing credentials, personal library paths, or database content.
+Please use [GitHub's private vulnerability report](https://github.com/roanpy/book-organizer/security/advisories/new). If private reporting is unavailable, contact the maintainer through the method listed on the GitHub profile and ask for a private channel without including vulnerability details. Do not open a public issue containing credentials, personal library paths, or database content.
 
 ## Local Security Model
 
