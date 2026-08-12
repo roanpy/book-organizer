@@ -3,7 +3,7 @@
 #      Book Organizer - Release Packaging
 # ==========================================
 
-set -e
+set -euo pipefail
 
 # 获取脚本所在目录的上一级目录（项目根目录）
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -28,18 +28,39 @@ if [ ! -d "$APP_PATH" ]; then
     exit 1
 fi
 
-# 2. 重新签名 (Ad-hoc signing)
-# 这有助于解决某些权限问题，虽然没有开发者证书不会通过 Gatekeeper，
-# 但能确保二进制文件的完整性。
-echo "✍️  正在对应用进行签名 (Ad-hoc)..."
-codesign --force --deep --sign - "$APP_PATH"
+SIGN_IDENTITY="${BOOK_ORGANIZER_SIGN_IDENTITY:--}"
+NOTARY_PROFILE="${BOOK_ORGANIZER_NOTARY_PROFILE:-}"
+
+if [ "$SIGN_IDENTITY" = "-" ]; then
+    echo "✍️  使用 Ad-hoc 签名（仅适合本机测试）..."
+    codesign --force --deep --sign - "$APP_PATH"
+else
+    echo "✍️  使用 Developer ID 签名: $SIGN_IDENTITY"
+    codesign --force --deep --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP_PATH"
+fi
+codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+
+if [ -n "$NOTARY_PROFILE" ]; then
+    if [ "$SIGN_IDENTITY" = "-" ]; then
+        echo "❌ 公证需要 Developer ID Application 证书。"
+        exit 1
+    fi
+    echo "🔏 提交 Apple 公证..."
+    NOTARY_ZIP="${TMPDIR:-/tmp}/BookOrganizer-notary.zip"
+    ditto -c -k --keepParent --rsrc "$APP_PATH" "$NOTARY_ZIP"
+    xcrun notarytool submit "$NOTARY_ZIP" \
+        --keychain-profile "$NOTARY_PROFILE" --wait
+    find "$NOTARY_ZIP" -delete
+    xcrun stapler staple "$APP_PATH"
+    xcrun stapler validate "$APP_PATH"
+fi
 
 # 3. 打包为 ZIP
 # 使用 ditto 或 zip -y 来保留符号链接和权限
 RELEASE_DIR="releases"
 mkdir -p "$RELEASE_DIR"
-VERSION=$(date +%Y-%m-%d)
-ZIP_NAME="BookOrganizer_Mac_$VERSION.zip"
+VERSION=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+ZIP_NAME="BookOrganizer-macOS-arm64-v$VERSION.zip"
 ZIP_PATH="$RELEASE_DIR/$ZIP_NAME"
 
 echo "📦 正在压缩为 ZIP..."
@@ -51,7 +72,11 @@ echo "=========================================="
 echo "✅ 打包完成！"
 echo "文件位置: $ZIP_PATH"
 echo "=========================================="
-echo "⚠️  注意: 当前为 Ad-hoc 签名，未使用 Developer ID 签名和 notarization。"
-echo "在其他电脑上打开时如果提示'损坏'或'无法打开'，请在终端运行:"
-echo "sudo xattr -cr /Applications/BookOrganizer.app"
+if [ "$SIGN_IDENTITY" = "-" ]; then
+    echo "⚠️  当前是未公证的本地测试包，不应作为正式公开版本分发。"
+elif [ -z "$NOTARY_PROFILE" ]; then
+    echo "⚠️  已使用 Developer ID 签名，但尚未公证。"
+else
+    echo "✅ 已完成 Developer ID 签名与 Apple 公证。"
+fi
 echo "=========================================="

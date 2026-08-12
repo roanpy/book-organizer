@@ -344,6 +344,7 @@ function injectSyncModal() {
                 </div>
                 <div id="sync-state-results" class="sync-state-view hidden">
                     <div class="sync-results-summary">
+                        <p id="sync-health-summary" class="text-xs text-muted">正在检查数据库健康状态...</p>
                         <p>发现 <strong id="sync-op-count" class="highlight">0</strong> 个待处理项。</p>
                         <p class="text-xs text-muted">这些操作将修正数据库记录以匹配当前文件系统状态。</p>
                     </div>
@@ -422,6 +423,7 @@ async function fetchAnalysis() {
         if (data.success) {
             currentAnalysisResults = data.operations;
             renderSyncResults(data.operations);
+            renderDatabaseHealth(data.health);
             showState('sync', 'results');
         } else {
             showSyncError('分析失败: ' + (data.error || data.detail || '未知错误'));
@@ -430,6 +432,20 @@ async function fetchAnalysis() {
         console.error(e);
         showSyncError(formatRequestError(e, '数据库同步分析失败'));
     }
+}
+
+function renderDatabaseHealth(health) {
+    const element = document.getElementById('sync-health-summary');
+    if (!element) return;
+    if (!health) {
+        element.textContent = '数据库健康检查暂不可用。';
+        return;
+    }
+    const issues = health.issues || {};
+    const issueCount = Object.values(issues).reduce((sum, value) => sum + Number(value || 0), 0);
+    element.textContent = health.status === 'healthy'
+        ? `数据库完整，已扫描 ${health.scanned_files || 0} 个文件。`
+        : `数据库需关注：${issueCount} 项（只读检查，不会自动修改）。`;
 }
 
 function showSyncError(message) {

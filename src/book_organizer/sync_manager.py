@@ -12,6 +12,7 @@ from typing import Any, Dict, List
 from .config import load_config
 from .database import get_db
 from .file_ops import get_configured_book_extensions
+from .library_path_repair import inspect_database_connection, path_is_inside
 
 logger = logging.getLogger(__name__)
 
@@ -144,16 +145,31 @@ class DBSyncManager:
                 "SELECT id, filename, file_path, category, updated_at FROM enhanced_summaries"
             )
             rows = [dict(row) for row in cursor.fetchall()]
+            database_health = inspect_database_connection(conn)
+            database_health["scanned_files"] = len(all_fs_paths)
 
-            # 按文件名分组
-            filename_groups = defaultdict(list)
+            # 只有相同存储路径才是重复记录；同名书可以位于不同分类目录。
+            path_groups = defaultdict(list)
+            records_to_check = []
             for r in rows:
-                filename_groups[r["filename"]].append(r)
+                stored_path = (r.get("file_path") or "").strip()
+                if stored_path:
+                    absolute_path = (
+                        stored_path
+                        if os.path.isabs(stored_path)
+                        else os.path.join(self.target_dir, stored_path)
+                    )
+                    if path_is_inside(absolute_path, self.target_dir):
+                        stored_path = os.path.relpath(
+                            os.path.realpath(absolute_path),
+                            os.path.realpath(self.target_dir),
+                        )
+                    path_groups[os.path.normcase(os.path.normpath(stored_path))].append(r)
+                else:
+                    records_to_check.append(r)
 
             # A. 处理重复项
-            records_to_check = []
-
-            for fname, group in filename_groups.items():
+            for group in path_groups.values():
                 if len(group) > 1:
                     # 倒序排列
                     group.sort(key=lambda x: str(x["updated_at"]), reverse=True)
@@ -229,13 +245,14 @@ class DBSyncManager:
                                 best_candidate = c
                                 break
 
-                    # 兜底：使用第一个候选项 (如果模糊则警告)
+                    # 多候选且目录无法判断时保持不变，交给用户处理。
                     if not best_candidate:
-                        best_candidate = candidates[0]
                         if len(candidates) > 1:
                             logger.warning(
-                                f"[Sync] Ambiguous filename '{fname}': {len(candidates)} matches, using first."
+                                f"[Sync] Ambiguous filename '{fname}': {len(candidates)} matches, skipped."
                             )
+                            continue
+                        best_candidate = candidates[0]
 
                     new_path = best_candidate
                     new_name = fname
@@ -286,7 +303,11 @@ class DBSyncManager:
                             "record_id": rid,
                             "filename": fname,
                             "description": reason,
-                            "data": {"new_filename": new_name, "new_path": new_path},
+                            "data": {
+                                "new_filename": new_name,
+                                "new_path": new_path,
+                                "old_path": fpath,
+                            },
                             "category": category,
                         }
                     )
@@ -295,6 +316,7 @@ class DBSyncManager:
             "success": True,
             "operations": operations,
             "stats": {"total_records": len(rows), "proposed_ops": len(operations)},
+            "health": database_health,
         }
 
     def execute(self, selected_ops: List[Dict]) -> Dict[str, Any]:
@@ -324,6 +346,7 @@ class DBSyncManager:
                 otype = op["type"]
 
                 try:
+                    cursor.execute("SAVEPOINT sync_operation")
                     if otype == "DELETE_DUPLICATE":
                         cursor.execute(
                             "DELETE FROM enhanced_summaries WHERE id=?", (rid,)
@@ -337,8 +360,9 @@ class DBSyncManager:
 
                         # 如果适用，转换为相对路径
                         save_path = full_path
-                        if full_path.startswith(self.target_dir):
+                        if path_is_inside(full_path, self.target_dir):
                             save_path = os.path.relpath(full_path, self.target_dir)
+                        old_path = data.get("old_path") or ""
 
                         # 尝试更新
                         try:
@@ -351,31 +375,34 @@ class DBSyncManager:
                                 (new_name, save_path, rid),
                             )
 
-                            # Update books table casually
-                            if new_name != op["filename"]:
-                                cursor.execute(
-                                    """
-                                    UPDATE OR IGNORE books
-                                    SET filename=?, file_path=?, updated_at=CURRENT_TIMESTAMP
-                                    WHERE filename=?
-                                """,
-                                    (new_name, save_path, op["filename"]),
-                                )
+                            cursor.execute(
+                                """UPDATE books
+                                   SET filename=?, file_path=?, updated_at=CURRENT_TIMESTAMP
+                                   WHERE file_path=?""",
+                                (new_name, save_path, old_path),
+                            )
+                            cursor.execute(
+                                """UPDATE book_tocs
+                                   SET filename=?, file_path=?, updated_at=CURRENT_TIMESTAMP
+                                   WHERE file_path=?""",
+                                (new_name, save_path, old_path),
+                            )
 
                             updates += 1
 
                         except sqlite3.IntegrityError:
-                            # Collision! This record is trying to take a slot taken by another.
-                            # Usually means this is a ghost that should be deleted.
-                            logger.info(
-                                f"[Sync] IntegrityError on Update id={rid}. Deleting as ghost."
-                            )
-                            cursor.execute(
-                                "DELETE FROM enhanced_summaries WHERE id=?", (rid,)
-                            )
-                            deletes += 1
+                            cursor.execute("ROLLBACK TO sync_operation")
+                            logger.warning("[Sync] Path collision for record id=%s", rid)
+                            errors += 1
+
+                    cursor.execute("RELEASE sync_operation")
 
                 except Exception as e:
+                    try:
+                        cursor.execute("ROLLBACK TO sync_operation")
+                        cursor.execute("RELEASE sync_operation")
+                    except sqlite3.Error:
+                        pass
                     logger.error(f"Error executing op {op}: {e}")
                     errors += 1
 

@@ -8,6 +8,7 @@ never move, rename, or delete book files.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import sqlite3
@@ -30,8 +31,8 @@ _auto_repair_lock = threading.Lock()
 
 def path_is_inside(path: str | os.PathLike[str], root: str | os.PathLike[str]) -> bool:
     try:
-        path_abs = os.path.abspath(os.path.expanduser(os.fspath(path)))
-        root_abs = os.path.abspath(os.path.expanduser(os.fspath(root)))
+        path_abs = os.path.realpath(os.path.expanduser(os.fspath(path)))
+        root_abs = os.path.realpath(os.path.expanduser(os.fspath(root)))
         return os.path.commonpath([path_abs, root_abs]) == root_abs
     except (OSError, ValueError):
         return False
@@ -198,6 +199,76 @@ def repair_stale_library_paths(
         }
     finally:
         conn.close()
+
+
+def inspect_library_health(
+    *,
+    db_path: str | os.PathLike[str] | None = None,
+    target_dir: str | os.PathLike[str] | None = None,
+) -> dict[str, Any]:
+    """Return a read-only health report for the configured library and database."""
+    path_report = repair_stale_library_paths(
+        db_path=db_path, target_dir=target_dir, dry_run=True
+    )
+    if not path_report.get("ok"):
+        return path_report
+
+    db_path = path_report["db_path"]
+    stats = Counter(path_report.get("stats", {}))
+    conn = sqlite3.connect(db_path)
+    try:
+        database_health = inspect_database_connection(conn)
+    finally:
+        conn.close()
+
+    issues = {
+        "path_repairs": int(stats.get("updates", 0)),
+        "missing_records": sum(
+            int(stats.get(f"{table}_missing", 0)) for table in PATH_TABLES
+        ),
+        "ambiguous_records": sum(
+            int(stats.get(f"{table}_ambiguous", 0)) for table in PATH_TABLES
+        ),
+        **database_health["issues"],
+    }
+    return {
+        "ok": database_health["ok"],
+        "status": "healthy" if database_health["ok"] and not any(issues.values()) else "attention",
+        "integrity": database_health["integrity"],
+        "issues": issues,
+        "scanned_files": int(stats.get("scanned_files", 0)),
+        "sample_path_repairs": path_report.get("sample_updates", []),
+    }
+
+
+def inspect_database_connection(conn: sqlite3.Connection) -> dict[str, Any]:
+    """Inspect database-only invariants without scanning the filesystem."""
+    integrity = conn.execute("PRAGMA integrity_check").fetchone()[0]
+    invalid_toc_json = 0
+    for (toc_json,) in conn.execute("SELECT toc_json FROM book_tocs"):
+        try:
+            json.loads(toc_json)
+        except (TypeError, json.JSONDecodeError):
+            invalid_toc_json += 1
+    issues = {
+        "orphan_chapters": int(
+            conn.execute(
+                "SELECT count(*) FROM chapters WHERE book_id NOT IN (SELECT id FROM books)"
+            ).fetchone()[0]
+        ),
+        "orphan_insights": int(
+            conn.execute(
+                "SELECT count(*) FROM enhanced_insights WHERE book_id NOT IN (SELECT id FROM books)"
+            ).fetchone()[0]
+        ),
+        "invalid_toc_json": invalid_toc_json,
+    }
+    return {
+        "ok": integrity == "ok",
+        "status": "healthy" if integrity == "ok" and not any(issues.values()) else "attention",
+        "integrity": integrity,
+        "issues": issues,
+    }
 
 
 def start_auto_library_path_repair(delay_seconds: float = 4.0) -> bool:

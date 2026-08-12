@@ -9,4 +9,7 @@
 - Added portable library path repair and safer database/config synchronization.
 - Kept API keys local by default.
 - Removed the Google Drive SDK and automatic upload from the main branch; local PDF export remains available for manual import into external services.
+- Made database identity path-based so same-name books in different folders retain separate summaries, TOCs, chapters, and insights.
+- Added a read-only library health endpoint and safer ambiguous-path handling.
+- Added explicit Developer ID signing and Apple notarization support to the release script.
 - Added source and packaged-app privacy checks.

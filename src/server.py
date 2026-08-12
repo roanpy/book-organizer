@@ -29,6 +29,7 @@ except RuntimeError:
 # 导入路由模块
 from book_organizer.config import load_config
 from book_organizer.database import UNIFIED_DB_NAME, close_db
+from book_organizer.gemini_client import shutdown_gemini_clients
 from book_organizer.library_path_repair import start_auto_library_path_repair
 from book_organizer.local_utils import init_learned_rules_async
 from book_organizer.routers import (
@@ -236,12 +237,15 @@ def main():
 
         # Create native window with persistent storage
         print("Creating webview window with Bundle ID: com.peter.bookorganizer")
-        webview.create_window(
+        window = webview.create_window(
             "Book Organizer",
             f"http://{LOCAL_HOST}:{server_port}",
             width=1200,
             height=800,
         )
+        smoke_exit_seconds = float(os.environ.get("BOOK_ORGANIZER_SMOKE_EXIT_SECONDS", "0"))
+        if smoke_exit_seconds > 0:
+            threading.Timer(smoke_exit_seconds, window.destroy).start()
         webview.start()
 
     except Exception as e:
@@ -264,6 +268,7 @@ def main():
             if server_thread.is_alive() and server:
                 server.force_exit = True
                 server_thread.join(timeout=2)
+        shutdown_gemini_clients()
         close_db()
     return 0
 

@@ -5,6 +5,7 @@ Importing google.generativeai loads grpc native modules immediately. Keeping the
 SDK out of startup paths avoids grpc shutdown crashes when the app exits.
 """
 
+import sys
 from typing import Any
 
 
@@ -29,3 +30,22 @@ def create_gemini_model(api_key: str, model_name: str) -> Any | None:
     if genai is None:
         return None
     return genai.GenerativeModel(model_name)
+
+
+def shutdown_gemini_clients() -> None:
+    """Close already-created SDK transports without importing Gemini at shutdown."""
+    client_module = sys.modules.get("google.generativeai.client")
+    manager = getattr(client_module, "_client_manager", None)
+    clients = getattr(manager, "clients", None)
+    if not isinstance(clients, dict):
+        return
+    for client in list(clients.values()):
+        close = getattr(client, "close", None)
+        if not callable(close):
+            close = getattr(getattr(client, "transport", None), "close", None)
+        if callable(close):
+            try:
+                close()
+            except Exception:
+                pass
+    clients.clear()

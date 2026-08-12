@@ -150,3 +150,36 @@ def test_scan_library_files_uses_configured_extensions(monkeypatch, tmp_path):
 
     assert "keep.pdf" in files
     assert "skip.docx" not in files
+
+
+def test_library_health_reports_paths_orphans_and_invalid_toc(tmp_path):
+    target = tmp_path / "Books"
+    target.mkdir()
+    db_path = tmp_path / "book_data.db"
+    _init_path_tables(db_path)
+    conn = sqlite3.connect(db_path)
+    conn.executescript(
+        """
+        CREATE TABLE chapters (id INTEGER PRIMARY KEY, book_id INTEGER);
+        CREATE TABLE enhanced_insights (id INTEGER PRIMARY KEY, book_id INTEGER);
+        INSERT INTO books (filename, file_path) VALUES ('missing.epub', '/old/missing.epub');
+        INSERT INTO book_tocs (filename, file_path) VALUES ('broken.epub', 'broken.epub');
+        ALTER TABLE book_tocs ADD COLUMN toc_json TEXT;
+        UPDATE book_tocs SET toc_json = '{broken';
+        INSERT INTO chapters (book_id) VALUES (999);
+        INSERT INTO enhanced_insights (book_id) VALUES (999);
+        """
+    )
+    conn.commit()
+    conn.close()
+
+    result = library_path_repair.inspect_library_health(
+        db_path=db_path, target_dir=target
+    )
+
+    assert result["ok"] is True
+    assert result["status"] == "attention"
+    assert result["issues"]["missing_records"] == 2
+    assert result["issues"]["orphan_chapters"] == 1
+    assert result["issues"]["orphan_insights"] == 1
+    assert result["issues"]["invalid_toc_json"] == 1

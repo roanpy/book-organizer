@@ -86,6 +86,10 @@ Runtime dependencies are pinned in `requirements.txt`; build and development add
 
 The main branch does not bundle a cloud-drive SDK or perform automatic uploads. The former Google Drive integration is preserved on the `archive/google-drive-integration` branch.
 
+## Library Health
+
+`GET /api/db/health` performs a read-only SQLite integrity, stale-path, orphan-record, and TOC JSON check. It never modifies book files or database rows. Use `scripts/repair_library_paths.py` to preview and explicitly apply path repairs with a backup.
+
 ## License
 
 [MIT](LICENSE)

@@ -56,6 +56,10 @@ python scripts/check_public_safety.py
 
 Calibre 的 `ebook-convert` 只用于可选的 PDF 转换，不随程序捆绑。生成的 PDF 可手动导入 NotebookLM 等服务；主分支不包含云盘 SDK，也不会自动上传。原 Google Drive 集成保存在 `archive/google-drive-integration` 分支。
 
+## 书库健康检查
+
+`GET /api/db/health` 只读检查 SQLite 完整性、旧路径、孤立记录和损坏的目录 JSON，不会修改图书文件或数据库记录。路径修复仍通过 `scripts/repair_library_paths.py` 先预览、备份后显式执行。
+
 ## 许可证
 
 [MIT](LICENSE)

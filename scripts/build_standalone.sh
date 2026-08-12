@@ -210,6 +210,7 @@ if [ -d "dist/BookOrganizer.app" ]; then
             \( -name "book_organizer_config.json" \
             -o -name "book_organizer_history.json" \
             -o -name "book_organizer.db" \
+            -o -name "*.backup" \
             -o -name "google_drive_token.json" \
             -o -name "client_secrets.json" \
             -o -name "client_secret*.json" \) \

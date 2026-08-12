@@ -149,8 +149,8 @@ class KnowledgeCoreDB:
                     CREATE TABLE IF NOT EXISTS books (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         file_hash TEXT,             -- 文件哈希 (用于同步/去重)
-                        filename TEXT UNIQUE NOT NULL,
-                        file_path TEXT,
+                        filename TEXT NOT NULL,
+                        file_path TEXT UNIQUE NOT NULL,
                         title TEXT,
                         author TEXT,
                         publisher TEXT,
@@ -162,6 +162,7 @@ class KnowledgeCoreDB:
                 cursor.execute(
                     "CREATE INDEX IF NOT EXISTS idx_books_filename ON books(filename)"
                 )
+                self._migrate_books_to_path_identity(conn, cursor)
 
                 # 2. Chapters 表 (扁平化目录)
                 cursor.execute("""
@@ -223,6 +224,55 @@ class KnowledgeCoreDB:
 
         except Exception as e:
             logger.error(f"Failed to init KnowledgeDB: {e}")
+
+    def _migrate_books_to_path_identity(self, conn, cursor):
+        """Use portable file paths, not basenames, as the book identity."""
+        row = cursor.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='books'"
+        ).fetchone()
+        table_sql = (row[0] if row else "").lower().replace("\n", " ")
+        if "filename text unique" not in table_sql:
+            return
+
+        conn.commit()
+        backup_path = f"{self.db_path}.before_path_identity.backup"
+        backup_conn = sqlite3.connect(backup_path)
+        try:
+            conn.backup(backup_conn)
+        finally:
+            backup_conn.close()
+        cursor.execute("PRAGMA foreign_keys = OFF")
+        try:
+            cursor.execute("DROP TABLE IF EXISTS books_by_path")
+            cursor.execute("""
+                CREATE TABLE books_by_path (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_hash TEXT,
+                    filename TEXT NOT NULL,
+                    file_path TEXT UNIQUE NOT NULL,
+                    title TEXT,
+                    author TEXT,
+                    publisher TEXT,
+                    meta_json TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute("""
+                INSERT INTO books_by_path
+                    (id, file_hash, filename, file_path, title, author, publisher,
+                     meta_json, created_at, updated_at)
+                SELECT id, file_hash, filename,
+                       COALESCE(NULLIF(file_path, ''), filename),
+                       title, author, publisher, meta_json, created_at, updated_at
+                FROM books
+            """)
+            cursor.execute("DROP TABLE books")
+            cursor.execute("ALTER TABLE books_by_path RENAME TO books")
+            cursor.execute("CREATE INDEX idx_books_filename ON books(filename)")
+            conn.commit()
+        finally:
+            cursor.execute("PRAGMA foreign_keys = ON")
 
     def _init_legacy_tables(self, cursor):
         """保留旧表结构以确保兼容性"""
@@ -472,9 +522,15 @@ class KnowledgeCoreDB:
         for row in tocs:
             # 找到对应的 book_id
             cursor.execute(
-                "SELECT id FROM books WHERE filename = ?", (row["filename"],)
+                "SELECT id FROM books WHERE file_path = ?", (row["file_path"],)
             )
             book_row = cursor.fetchone()
+            if not book_row:
+                cursor.execute(
+                    "SELECT id FROM books WHERE filename = ?", (row["filename"],)
+                )
+                matches = cursor.fetchall()
+                book_row = matches[0] if len(matches) == 1 else None
 
             if book_row:
                 book_id = book_row[0]
@@ -513,6 +569,9 @@ class KnowledgeCoreDB:
 
     def add_book(self, filename: str, path: str, metadata: dict = None) -> int:
         """添加或更新书籍"""
+        from .library_path_repair import portable_library_path
+
+        path = portable_library_path(path)
         meta_str = json.dumps(metadata) if metadata else "{}"
         title = metadata.get("title") if metadata else None
         author = metadata.get("author") if metadata else None
@@ -523,8 +582,8 @@ class KnowledgeCoreDB:
                 """
                 INSERT INTO books (filename, file_path, title, author, meta_json, updated_at)
                 VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(filename) DO UPDATE SET
-                    file_path=excluded.file_path,
+                ON CONFLICT(file_path) DO UPDATE SET
+                    filename=excluded.filename,
                     title=COALESCE(excluded.title, books.title),
                     author=COALESCE(excluded.author, books.author),
                     meta_json=excluded.meta_json,
@@ -560,7 +619,6 @@ class KnowledgeCoreDB:
 
             stored_file_path = portable_library_path(file_path)
             # 1. 保存到旧表 (保持现有 UI 无损)
-            # 1. 保存到旧表 (保持现有 UI 无损)
             # 这里为了简单,我们直接重用原有的 SQL 逻辑
             filename = os.path.basename(file_path)
             metadata = summary_data.get("metadata", {})
@@ -593,15 +651,20 @@ class KnowledgeCoreDB:
                     """
                     INSERT INTO books (filename, file_path, title, author, meta_json, updated_at)
                     VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                    ON CONFLICT(filename) DO UPDATE SET
-                        file_path=excluded.file_path,
+                    ON CONFLICT(file_path) DO UPDATE SET
+                        filename=excluded.filename,
+                        title=COALESCE(excluded.title, books.title),
+                        author=COALESCE(excluded.author, books.author),
+                        meta_json=excluded.meta_json,
                         updated_at=CURRENT_TIMESTAMP
                 """,
                     (filename, stored_file_path, title, author, summary_json),
                 )
 
                 # Get Book ID
-                cursor.execute("SELECT id FROM books WHERE filename = ?", (filename,))
+                cursor.execute(
+                    "SELECT id FROM books WHERE file_path = ?", (stored_file_path,)
+                )
                 book_id = cursor.fetchone()[0]
 
                 # Insert Insight
@@ -831,14 +894,13 @@ class KnowledgeCoreDB:
                 # New Schema
                 # Ensure book exists
                 cursor.execute(
-                    "INSERT OR IGNORE INTO books (filename, file_path) VALUES (?, ?)",
+                    """INSERT INTO books (filename, file_path) VALUES (?, ?)
+                       ON CONFLICT(file_path) DO UPDATE SET filename=excluded.filename""",
                     (filename, stored_file_path),
                 )
                 cursor.execute(
-                    "UPDATE books SET file_path = ? WHERE filename = ?",
-                    (stored_file_path, filename),
+                    "SELECT id FROM books WHERE file_path = ?", (stored_file_path,)
                 )
-                cursor.execute("SELECT id FROM books WHERE filename = ?", (filename,))
                 book_id_row = cursor.fetchone()
 
                 if book_id_row:
@@ -962,11 +1024,18 @@ class KnowledgeCoreDB:
             book_id = None
             with self._get_conn() as conn:
                 cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT id FROM books WHERE filename = ?",
-                    (os.path.basename(new_filename),),
-                )
+                from .library_path_repair import portable_library_path
+
+                stored_path = portable_library_path(new_filename)
+                cursor.execute("SELECT id FROM books WHERE file_path = ?", (stored_path,))
                 row = cursor.fetchone()
+                if not row:
+                    cursor.execute(
+                        "SELECT id FROM books WHERE filename = ?",
+                        (os.path.basename(new_filename),),
+                    )
+                    rows = cursor.fetchall()
+                    row = rows[0] if len(rows) == 1 else None
                 if row:
                     book_id = row[0]
 

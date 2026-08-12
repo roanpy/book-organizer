@@ -2,6 +2,8 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException
 
+from book_organizer.library_path_repair import inspect_library_health
+
 # Sync Manager
 from book_organizer.sync_manager import sync_manager
 
@@ -13,6 +15,15 @@ from .models import (
 )
 
 router = APIRouter()
+
+
+@router.get("/api/db/health")
+def get_database_health() -> Dict[str, Any]:
+    """Run a read-only database and library path health check."""
+    try:
+        return inspect_library_health()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ==============================================================================
 # 数据库同步 API

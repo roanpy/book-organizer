@@ -30,6 +30,13 @@ def test_same_name_books_keep_separate_summaries_and_tocs(monkeypatch, tmp_path)
     assert db.get_toc(str(second))["toc"][0]["title"] == "Second"
     assert db.get_toc("book.epub") is None
 
+    conn = sqlite3.connect(db.db_path)
+    rows = conn.execute(
+        "SELECT filename, file_path FROM books ORDER BY file_path"
+    ).fetchall()
+    conn.close()
+    assert rows == [("book.epub", "A/book.epub"), ("book.epub", "B/book.epub")]
+
 
 def test_legacy_toc_table_migrates_to_path_identity(tmp_path):
     data_dir = tmp_path / "data"
@@ -65,3 +72,48 @@ def test_legacy_toc_table_migrates_to_path_identity(tmp_path):
     ).fetchall()
     conn.close()
     assert rows == [("book.epub", "A/book.epub"), ("book.epub", "B/book.epub")]
+
+
+def test_legacy_books_table_migrates_to_path_identity_without_changing_ids(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = data_dir / UNIFIED_DB_NAME
+    conn = sqlite3.connect(db_path)
+    conn.executescript(
+        """
+        PRAGMA foreign_keys = ON;
+        CREATE TABLE books (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_hash TEXT,
+            filename TEXT UNIQUE NOT NULL,
+            file_path TEXT,
+            title TEXT,
+            author TEXT,
+            publisher TEXT,
+            meta_json TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE chapters (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            book_id INTEGER NOT NULL,
+            title TEXT,
+            FOREIGN KEY(book_id) REFERENCES books(id) ON DELETE CASCADE
+        );
+        INSERT INTO books(id, filename, file_path) VALUES (7, 'book.epub', 'A/book.epub');
+        INSERT INTO chapters(book_id, title) VALUES (7, 'Chapter');
+        """
+    )
+    conn.commit()
+    conn.close()
+
+    db = KnowledgeCoreDB(db_dir=str(data_dir))
+    second_id = db.add_book("book.epub", "B/book.epub")
+
+    conn = sqlite3.connect(db_path)
+    books = conn.execute("SELECT id, file_path FROM books ORDER BY file_path").fetchall()
+    chapter = conn.execute("SELECT book_id, title FROM chapters").fetchone()
+    conn.close()
+    assert books == [(7, "A/book.epub"), (second_id, "B/book.epub")]
+    assert chapter == (7, "Chapter")
+    assert (data_dir / f"{UNIFIED_DB_NAME}.before_path_identity.backup").exists()

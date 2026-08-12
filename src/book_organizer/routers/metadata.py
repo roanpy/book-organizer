@@ -96,10 +96,11 @@ def get_existing_enhanced_summary(filename: str):
             embedded_summary,
             config.get("beta_features", {}).get("data_priority", "database"),
         )
-        if embedded_summary:
-            sync_embedded_summary_to_db(
+        if embedded_summary and sync_embedded_summary_to_db(
                 db, file_path, metadata, db_summary, embedded_summary
-            )
+        ):
+            summary_data = db.get_summary(file_path) or summary_data
+            db_summary = summary_data.get("summary", "") if summary_data else db_summary
 
         if summary_text:
             return {
