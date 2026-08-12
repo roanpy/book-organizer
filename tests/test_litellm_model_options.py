@@ -1,7 +1,34 @@
+import os
+import subprocess
+import sys
+from pathlib import Path
+
 from book_organizer.ai_engines.dispatcher import (
     build_litellm_model_options,
     format_ai_error,
 )
+
+
+def test_litellm_uses_bundled_model_map_by_default():
+    env = os.environ.copy()
+    env.pop("LITELLM_LOCAL_MODEL_COST_MAP", None)
+    src_dir = str(Path(__file__).resolve().parents[1] / "src")
+    env["PYTHONPATH"] = os.pathsep.join(
+        part for part in (src_dir, env.get("PYTHONPATH")) if part
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import os; import book_organizer.ai_engines.dispatcher; "
+            "assert os.environ['LITELLM_LOCAL_MODEL_COST_MAP'] == 'True'",
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_ai_errors_are_actionable_and_do_not_leak_provider_payloads():

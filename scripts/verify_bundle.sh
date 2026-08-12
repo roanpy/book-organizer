@@ -125,6 +125,12 @@ if find "$APP_PATH/Contents/Resources" \
     echo "❌ 应用包包含源码目录中的 Python 缓存"
     exit 1
 fi
+if grep -R -a -F "$HOME/" "$APP_PATH" >/dev/null 2>&1 || \
+   grep -R -a -E '/private/var/folders/[^[:space:]]*/book-organizer-build\.' \
+       "$APP_PATH" >/dev/null 2>&1; then
+    echo "❌ 应用包包含本机用户目录或临时构建路径"
+    exit 1
+fi
 
 echo "  - 检查预览静态资源..."
 if ! find "$APP_PATH" -path "*/static/js/modules/preview.js" -type f | grep -q .; then

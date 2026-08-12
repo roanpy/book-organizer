@@ -11,6 +11,7 @@ Contains:
 
 import json
 import logging
+import os
 from typing import Any, Dict, Optional
 
 from ..gemini_client import create_gemini_model
@@ -35,6 +36,10 @@ def format_ai_error(error: Exception | str) -> str:
     if "connect" in lowered or "network" in lowered:
         return "无法连接 AI 服务，请检查网络和服务地址。"
     return "AI 调用失败，请检查模型配置和网络后重试。"
+
+# LiteLLM ships a local model map. Avoid an unrelated GitHub request during
+# import; callers can explicitly override this environment variable.
+os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
 
 # LiteLLM as primary AI call library (needs tiktoken data at packaging time)
 try:
