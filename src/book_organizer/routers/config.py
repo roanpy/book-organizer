@@ -113,10 +113,10 @@ def _replace_database_file(
     source: str, destination: str, *, close_local_connection: bool = False
 ) -> None:
     """Back up a valid destination, close local handles, then replace it."""
-    if _valid_database(destination):
-        _backup_database(destination)
     if close_local_connection:
         reset_db_instances()
+    if _valid_database(destination):
+        _backup_database(destination)
     _copy_database_file(source, destination)
 
 

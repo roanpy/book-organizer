@@ -572,4 +572,4 @@ def test_database_replacement_closes_local_connection_before_copy(
         str(source), str(destination), close_local_connection=True
     )
 
-    assert calls == ["backup", "close", "copy"]
+    assert calls == ["close", "backup", "copy"]
