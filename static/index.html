@@ -1,0 +1,2125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Organizer Pro</title>
+    <!-- Local Fonts & Icons -->
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/static/style.css?v=5">
+    <link rel="icon" type="image/png" href="/static/favicon.png">
+</head>
+
+<body data-mode="organize">
+    <div id="app">
+        <header class="glass-header">
+            <div class="logo">
+                <i class="fa-solid fa-book-open-reader"></i>
+                <span>Book Organizer <span class="highlight">Pro</span></span>
+            </div>
+            <div class="actions">
+                <!-- Toggle Icons (click to toggle, hover for tooltip) -->
+                <button id="web-search-icon" class="btn-icon-only has-tooltip" data-tooltip="联网搜索">
+                    <i class="fa-solid fa-globe"></i>
+                </button>
+                <button id="enhanced-mode-icon" class="btn-icon-only has-tooltip" data-tooltip="增强模式">
+                    <i class="fa-solid fa-file-lines"></i>
+                </button>
+                <button id="toc-mode-icon" class="btn-icon-only has-tooltip" data-tooltip="识别目录">
+                    <i class="fa-solid fa-list-ol"></i>
+                </button>
+                <button id="content-search-icon" class="btn-icon-only has-tooltip" data-tooltip="内容与搜索">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                </button>
+                <button id="db-enhance-icon" class="btn-icon-only has-tooltip" data-tooltip="数据库增强">
+                    <i class="fa-solid fa-database"></i>
+                </button>
+                <button id="auto-upload-icon" class="btn-icon-only has-tooltip hidden"
+                    data-tooltip="自动上传到 Google Drive">
+                    <i class="fa-brands fa-google-drive"></i>
+                </button>
+
+                <!-- Vertical Divider -->
+                <span class="header-divider"></span>
+
+                <!-- AI Model Selector (Custom Dropdown) -->
+                <div class="dropdown" id="engine-dropdown-container">
+                    <button class="btn-icon btn-labeled dropdown-toggle" id="engine-dropdown-btn" title="选择 AI 模型">
+                        <span id="current-engine-label">离线模式</span>
+                        <span id="current-engine-status" class="status-dot status-offline"></span>
+                        <i class="fa-solid fa-caret-down dropdown-caret"></i>
+                    </button>
+                    <!-- Hidden input to maintain compatibility with existing code that reads .value -->
+                    <input type="hidden" id="engine-select" value="offline">
+                    <div class="dropdown-menu" id="engine-dropdown-menu">
+                        <!-- Options injected by JS -->
+                    </div>
+                </div>
+
+                <!-- Vertical Divider -->
+                <span class="header-divider"></span>
+
+                <!-- Batch Processing Dropdown (separate group) -->
+                <div class="dropdown" id="process-dropdown">
+                    <button class="btn-icon btn-labeled dropdown-toggle" id="process-dropdown-btn" title="处理模式">
+                        <i class="fa-solid fa-layer-group"></i> <span>批量</span>
+                        <span id="lib-selected-badge" class="selection-badge hidden">0</span>
+                        <i class="fa-solid fa-caret-down dropdown-caret"></i>
+                    </button>
+                    <div class="dropdown-menu">
+                        <!-- 入库管理模式选项 -->
+                        <div class="dropdown-item inbound-only" id="seq-btn">
+                            <i class="fa-solid fa-play"></i> 顺序处理
+                        </div>
+                        <div class="dropdown-item inbound-only" id="batch-btn">
+                            <i class="fa-solid fa-layer-group"></i> 批量处理
+                        </div>
+                        <!-- 在库管理模式选项 -->
+                        <div class="dropdown-item library-only lib-selection-info" id="lib-selection-item">
+                            <span>已选 <strong id="lib-selected-count-menu">0</strong> 本</span>
+                            <button class="btn-text btn-xs"
+                                onclick="clearLibrarySelection(); event.stopPropagation();">取消</button>
+                        </div>
+                        <div class="dropdown-divider library-only hidden"></div>
+                        <div class="dropdown-item library-only hidden" id="lib-batch-enhance-menu">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> 批量增强
+                        </div>
+                        <div class="dropdown-item library-only hidden" id="lib-batch-convert-menu">
+                            <i class="fa-solid fa-file-export"></i> 批量转换
+                        </div>
+                        <div class="dropdown-item library-only hidden disabled" id="lib-no-selection-hint">
+                            <i class="fa-solid fa-info-circle"></i> 请先选择图书
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Vertical Divider -->
+                <span class="header-divider"></span>
+                <button id="ai-config-btn" class="btn-icon btn-labeled" title="AI配置">
+                    <i class="fa-solid fa-brain"></i> <span>AI配置</span>
+                    <span class="ai-status-indicators">
+                        <span id="ai-status-core" class="status-dot active" title="核心规则"></span>
+                        <span id="ai-status-enhanced" class="status-dot" title="增强规则"></span>
+                        <span id="ai-status-additional" class="status-dot" title="附加规则"></span>
+                        <span id="ai-status-historical" class="status-dot" title="历史参考"></span>
+                        <span id="ai-status-extraction" class="status-dot" title="字段提取"></span>
+                        <span id="ai-status-content-search" class="status-dot" title="内容与搜索控制"></span>
+                        <span id="ai-status-toc-rules" class="status-dot" title="目录规则"></span>
+                    </span>
+                </button>
+                <button id="records-btn" class="btn-icon-only has-tooltip records-btn-style" data-tooltip="记录">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                </button>
+                <button id="cloud-sync-btn" class="btn-icon-only has-tooltip" data-tooltip="云同步">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </button>
+                <button id="refresh-btn" class="btn-icon-only has-tooltip" data-tooltip="刷新">
+                    <i class="fa-solid fa-rotate-right"></i>
+                </button>
+                <button id="settings-btn" class="btn-icon-only has-tooltip" data-tooltip="设置">
+                    <i class="fa-solid fa-gear"></i>
+                </button>
+                <button id="help-btn" class="btn-icon-only has-tooltip" data-tooltip="帮助">
+                    <i class="fa-solid fa-circle-question"></i>
+                </button>
+            </div>
+        </header>
+
+        <main class="main-container">
+            <aside class="sidebar glass-panel">
+                <div class="mode-tabs">
+                    <button id="organize-mode-btn" class="mode-tab active" onclick="switchMode('organize')">
+                        <i class="fa-solid fa-inbox"></i> 入库整理
+                    </button>
+                    <button id="manage-mode-btn" class="mode-tab" onclick="switchMode('manage')">
+                        <i class="fa-solid fa-book-bookmark"></i> 在库管理
+                    </button>
+                </div>
+
+                <div class="sidebar-header" id="sidebar-header-container">
+                    <h3>
+                        <span id="sidebar-title"><i class="fa-solid fa-layer-group"></i><span
+                                class="badge-text">待入库</span></span>
+                        <div id="stats-bar" class="stats-bar">
+                            <span class="stat-item stat-clickable" id="stat-total-wrapper" title="" data-filter="all">
+                                <span id="stat-total">0</span><span class="stat-label"> 总数</span>
+                            </span>
+                            <span class="stat-item stat-clickable" id="stat-skipped-wrapper" title=""
+                                data-filter="skipped">
+                                <span id="stat-skipped" class="highlight-skipped">0</span><span class="stat-label">
+                                    跳过</span>
+                            </span>
+                        </div>
+                        <div id="library-stats" class="stats-bar hidden">
+                            <span class="stat-item stat-clickable" id="lib-total-wrapper" title="" data-filter="all">
+                                <span id="lib-total">0</span><span class="stat-label"> 本</span>
+                            </span>
+                            <span class="stat-item stat-clickable" id="lib-enhanced-wrapper" title=""
+                                data-filter="enhanced">
+                                <span id="lib-enhanced" class="highlight-success">0</span><span class="stat-label">
+                                    已增强</span>
+                            </span>
+                            <span class="stat-item stat-clickable" id="lib-not-enhanced-wrapper" title=""
+                                data-filter="not_enhanced">
+                                <span id="lib-not-enhanced" class="highlight-warning">0</span><span class="stat-label">
+                                    未增强</span>
+                            </span>
+                        </div>
+                </div>
+                <!-- 🆕 Sidebar Search Box (Moved) -->
+                <div class="sidebar-search" id="sidebar-search-container">
+                    <div class="search-input-wrapper">
+                        <i class="fa-solid fa-search search-icon"></i>
+                        <input type="text" id="sidebar-search-input" placeholder="搜索... (空格支持多条件, +数字代表星级筛选)" />
+                        <button id="sidebar-search-clear" class="search-clear-btn hidden" title="清空">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="book-list" class="book-list">
+                    <!-- Book items will be injected here -->
+                    <div class="loading-spinner"></div>
+                </div>
+            </aside>
+
+            <section class="content-area glass-panel">
+                <div id="empty-state" class="empty-state">
+                    <i class="fa-solid fa-arrow-left-long"></i>
+                    <p>请从左侧选择一本书开始整理</p>
+                </div>
+
+                <div id="book-detail" class="book-detail hidden">
+                    <div class="book-header">
+                        <div class="book-cover-container" onclick="openCoverZoom()" style="cursor: pointer;"
+                            title="点击查看大图">
+                            <img id="book-cover" src="" alt="Cover" class="hidden">
+                            <div id="book-icon-placeholder" class="book-icon-large">
+                                <i id="book-type-icon" class="fa-solid fa-file-pdf"></i>
+                            </div>
+                        </div>
+                        <div class="book-info">
+                            <h2 id="current-filename">Filename.pdf</h2>
+                            <p id="current-parsed-info" class="meta-info">解析信息...</p>
+                        </div>
+                    </div>
+
+                    <div class="analysis-section">
+                        <div class="section-title">
+                            <h3><i class="fa-solid fa-wand-magic-sparkles"></i> AI 分析</h3>
+                            <div class="analysis-actions">
+                                <!-- Rating Component (Before Analyze Button) -->
+                                <div id="book-rating-container" class="book-rating hidden">
+                                    <div class="rating-stars" id="rating-stars">
+                                        <span class="rating-clear" title="清除评分"><i class="fa-solid fa-ban"></i></span>
+                                        <span class="rating-star" data-value="1">☆</span>
+                                        <span class="rating-star" data-value="2">☆</span>
+                                        <span class="rating-star" data-value="3">☆</span>
+                                        <span class="rating-star" data-value="4">☆</span>
+                                        <span class="rating-star" data-value="5">☆</span>
+                                    </div>
+                                </div>
+
+                                <button id="analyze-btn" class="btn-primary"><i class="fa-solid fa-play"></i>
+                                    开始信息及目录分析</button>
+                                <button id="skip-btn" class="btn-secondary hidden"><i class="fa-solid fa-forward"></i>
+                                    跳过</button>
+                                <button id="delete-btn" class="btn-danger hidden"><i class="fa-solid fa-trash"></i>
+                                    删除</button>
+                            </div>
+                        </div>
+
+                        <div id="analysis-result" class="result-card hidden">
+                            <div class="summary-box">
+                                <h4>图书简介</h4>
+                                <p id="ai-summary">等待分析...</p>
+                            </div>
+
+                            <div class="suggestions-box">
+                                <h4>推荐目录</h4>
+                                <ul id="suggestion-list" class="suggestion-list">
+                                    <!-- Suggestions will be injected here -->
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div id="analysis-loading" class="loading-overlay hidden">
+                            <div class="spinner"></div>
+                            <p>AI 正在深度阅读与分类中...</p>
+                        </div>
+                    </div>
+
+                    <!-- Metadata Edit Section (Unified) -->
+                    <div class="metadata-section glass-panel-inner">
+                        <div class="section-title">
+                            <h3><i class="fa-solid fa-wand-magic-sparkles"></i> 图书信息</h3>
+                            <div class="action-buttons">
+                                <button id="btn-identify" class="btn-primary" onclick="identifyMetadata()">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i> 识别信息
+                                </button>
+                                <button id="btn-isbn-lookup" class="btn-secondary" onclick="lookupISBN()"
+                                    title="ISBN 查询（本地功能，无需 AI）">
+                                    <i class="fa-solid fa-barcode"></i> ISBN
+                                </button>
+                                <button id="btn-gen-summary" class="btn-primary" onclick="generateEnhancedSummary()">
+                                    <i class="fa-solid fa-file-lines"></i> 增强简介
+                                </button>
+                                <button id="btn-extract-toc" class="btn-primary" onclick="extractToc()">
+                                    <i class="fa-solid fa-list-ol"></i> 识别目录
+                                </button>
+                                <button id="btn-preview-book" class="btn-secondary hidden" onclick="openBookPreview()"
+                                    title="预览">
+                                    <i class="fa-solid fa-eye"></i> 预览
+                                </button>
+                                <button id="btn-export-pdf-new" class="btn-secondary" onclick="handleSmartExport()"
+                                    style="display: none;" title="导出或上传云盘">
+                                    <i class="fa-solid fa-file-pdf"></i> 导出
+                                </button>
+                                <button id="btn-save" class="btn-save-inactive">
+                                    <i class="fa-solid fa-floppy-disk"></i> 保存
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="metadata-content">
+                            <!-- Basic Info Form -->
+                            <div class="metadata-form compact-form">
+                                <!-- Row 1: Title (1/2), Author (1/2) -->
+                                <div class="form-row-2">
+                                    <div class="form-group">
+                                        <div class="input-group-inline">
+                                            <span class="input-group-text" title="书名">书名</span>
+                                            <input type="text" id="meta-title" oninput="handleMetadataInput()"
+                                                placeholder="例如: 时代的喧嚣">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <div class="input-group-inline">
+                                            <span class="input-group-text" title="作者 (支持多作者用 & 分隔)">作者</span>
+                                            <input type="text" id="meta-author" oninput="handleMetadataInput()"
+                                                placeholder="例如: [日] 村上春树">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Row 2: Publisher (1/3), Series (1/3), Tags (1/3) -->
+                                <div class="form-row-3">
+                                    <div class="form-group">
+                                        <div class="input-group-inline">
+                                            <span class="input-group-text" title="出版社">出版</span>
+                                            <input type="text" id="meta-publisher" oninput="handleMetadataInput()"
+                                                placeholder="例如: 中信出版社">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <div class="input-group-inline">
+                                            <span class="input-group-text" title="丛书/系列">丛书</span>
+                                            <input type="text" id="meta-series" oninput="handleMetadataInput()"
+                                                placeholder="例如: 理想国译丛">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <div class="input-group-inline">
+                                            <span class="input-group-text" title="标签 (逗号分隔)">标签</span>
+                                            <input type="text" id="meta-tags" oninput="handleMetadataInput()"
+                                                placeholder="例如: 文学, 诗歌">
+                                            <button type="button" id="btn-auto-category" class="btn-inline-action"
+                                                onclick="autoCategorize()" title="根据书名自动推荐分类（本地功能，无需 AI）">
+                                                <i class="fa-solid fa-tag"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Row 3: Filename Preview (Full Width) -->
+                                <div class="form-row-1">
+                                    <div class="form-group">
+                                        <div class="input-group-inline">
+                                            <span class="input-group-text" title="目标文件名预览">预览</span>
+                                            <input type="text" id="meta-filename" readonly>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <hr class="section-divider">
+
+                            <!-- Tab Switcher for Summary/TOC -->
+                            <div class="content-tabs">
+                                <button class="content-tab active" id="tab-summary"
+                                    onclick="switchContentTab('summary')">
+                                    <i class="fa-solid fa-file-lines"></i> <span id="tab-summary-text">增强简介</span>
+                                </button>
+                                <button class="content-tab" id="tab-toc" onclick="switchContentTab('toc')">
+                                    <i class="fa-solid fa-list-ol"></i> <span id="tab-toc-text">图书目录</span>
+                                </button>
+                                <div class="content-source-controls">
+                                    <div class="content-source-group active" id="summary-source-controls">
+                                        <span>显示来源</span>
+                                        <button class="content-source-btn active" data-source="database"
+                                            onclick="switchContentSource('summary', 'database')">数据库</button>
+                                        <button class="content-source-btn" data-source="metadata"
+                                            onclick="switchContentSource('summary', 'metadata')">文件内置</button>
+                                    </div>
+                                    <div class="content-source-group" id="toc-source-controls">
+                                        <span>显示来源</span>
+                                        <button class="content-source-btn active" data-source="database"
+                                            onclick="switchContentSource('toc', 'database')">数据库</button>
+                                        <button class="content-source-btn" data-source="metadata"
+                                            onclick="switchContentSource('toc', 'metadata')">文件内置</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tab Content: Enhanced Summary -->
+                            <div class="tab-content active" id="content-summary">
+                                <div class="ai-organize-content">
+                                    <div class="empty-ai-state">
+                                        <i class="fa-solid fa-robot"></i>
+                                        <p>点击上方按钮生成增强简介</p>
+                                    </div>
+                                    <div id="ai-summary-result" class="hidden">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tab Content: TOC -->
+                            <div class="tab-content" id="content-toc">
+                                <div class="toc-content">
+                                    <div class="empty-toc-state">
+                                        <i class="fa-solid fa-list-ol"></i>
+                                        <p>点击上方按钮识别图书目录</p>
+                                    </div>
+                                    <div id="toc-result" class="hidden">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="modal hidden">
+            <div class="modal-content glass-panel fixed-footer-modal">
+                <div class="modal-header">
+                    <h3>系统设置</h3>
+                    <button id="close-settings" class="btn-close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="modal-body modal-body-fixed">
+                    <div class="settings-tabs">
+                        <button class="tab-btn active" onclick="switchTab('general')"><i class="fa-solid fa-sliders"></i>
+                            通用设置</button>
+                        <button class="tab-btn" onclick="switchTab('sync')"><i class="fa-solid fa-cloud"></i>
+                            云同步</button>
+                        <button class="tab-btn" onclick="switchTab('models')"><i class="fa-solid fa-brain"></i>
+                            AI 模型</button>
+                        <button class="tab-btn" onclick="switchTab('formats')"><i class="fa-solid fa-file-circle-check"></i>
+                            识别格式</button>
+                        <button class="tab-btn" onclick="switchTab('beta')"><i class="fa-solid fa-layer-group"></i>
+                            高级功能</button>
+                    </div>
+
+                    <div id="tab-general" class="tab-content active">
+                        <div class="scrollable-content">
+                            <div class="tab-info">
+                                <p><i class="fa-solid fa-folder-tree"></i>
+                                    <strong>目录配置</strong>：设置源目录、目标目录及相关路径。这些是图书整理流程的核心配置，请确保目录路径正确且有足够的访问权限。
+                                </p>
+                            </div>
+
+                            <div class="form-group">
+                                <label>源目录 (Source)</label>
+                                <div class="input-group">
+                                    <input type="text" id="cfg-source">
+                                    <button type="button" class="btn-secondary"
+                                        onclick="openDirPicker('source')">浏览</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>目标目录 (Target)</label>
+                                <div class="input-group">
+                                    <input type="text" id="cfg-target">
+                                    <button type="button" class="btn-secondary"
+                                        onclick="openDirPicker('target')">浏览</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>数据目录 (Data Directory) <span class="text-muted text-sm">(默认:
+                                        ~/.book_organizer)</span></label>
+                                <div class="input-group">
+                                    <input type="text" id="cfg-data-dir" placeholder="默认路径: ~/.book_organizer">
+                                    <button type="button" class="btn-secondary"
+                                        onclick="openDirPicker('data-dir')">浏览</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>PDF 导出目录 (Calibre 转换) <span
+                                        class="text-muted text-sm">(留空则保存在源文件旁边)</span></label>
+                                <div class="input-group">
+                                    <input type="text" id="cfg-pdf-export-dir" placeholder="留空则使用源文件目录">
+                                    <button type="button" class="btn-secondary"
+                                        onclick="openDirPicker('pdf-export-dir')">浏览</button>
+                                </div>
+                                <p class="help-text"><span class="text-muted text-sm">支持格式: EPUB, MOBI, AZW, AZW3, FB2,
+                                        LIT, LRF, PDB</span></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="tab-sync" class="tab-content">
+                        <div class="scrollable-content">
+                            <!-- Sync Status Card -->
+                            <div class="sync-status-card" id="sync-status-card">
+                                <div class="sync-status-header">
+                                    <div class="sync-status-icon" id="sync-status-icon">
+                                        <i class="fa-solid fa-cloud"></i>
+                                    </div>
+                                    <div class="sync-status-info">
+                                        <h4 id="sync-status-title">iCloud 同步</h4>
+                                        <p id="sync-status-desc" class="text-muted">跨设备共享数据库、AI 规则和偏好；API Key 默认只保存在本机</p>
+                                    </div>
+                                    <label class="toggle-switch large">
+                                        <input type="checkbox" id="sync-enabled" onchange="toggleSyncSettings()">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div class="microlight-bar"
+                                    style="display: flex; justify-content: flex-end; margin-top: -10px; margin-bottom: 10px; padding-right: 5px;">
+                                    <label class="checkbox-inline text-sm text-muted" title="启动和退出时检测数据库差异">
+                                        <input type="checkbox" id="sync-auto-check" checked>
+                                        <span style="vertical-align: middle;">自动检测差异</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Sync Settings Panel (hidden by default) -->
+                            <div id="sync-settings-panel" class="hidden">
+                                <!-- Path Configuration Card -->
+                                <div class="sync-config-card">
+                                    <div class="sync-config-header">
+                                        <i class="fa-solid fa-folder-open"></i>
+                                        <span>同步目录</span>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <div class="input-group">
+                                            <input type="text" id="cfg-sync-path" placeholder="选择 iCloud Drive 中的文件夹">
+                                            <button type="button" class="btn-secondary"
+                                                onclick="openDirPicker('sync-path')">
+                                                <i class="fa-solid fa-folder"></i> 浏览
+                                            </button>
+                                        </div>
+                                        <p class="help-text text-sm" style="margin-top: 8px;">
+                                            <i class="fa-solid fa-lightbulb text-warning"></i>
+                                            macOS iCloud 默认路径: <code
+                                                style="font-size: 0.8em; cursor: pointer; text-decoration: underline; text-decoration-style: dashed;"
+                                                title="点击自动填入"
+                                                onclick="const p = '~/Library/Mobile Documents/com~apple~CloudDocs/BookOrganizer'; document.getElementById('cfg-sync-path').value = p; showNotification('已填入推荐路径 (系统将自动识别 ~)', 3000, 'success');">~/Library/Mobile Documents/com~apple~CloudDocs/BookOrganizer</code>
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div class="sync-config-card sync-secret-card">
+                                    <div class="sync-config-header">
+                                        <i class="fa-solid fa-shield-halved"></i>
+                                        <span>敏感凭据</span>
+                                    </div>
+                                    <label class="sync-secret-toggle">
+                                        <input type="checkbox" id="sync-sensitive-credentials">
+                                        <span>
+                                            同步 AI/API Key、Google Token 和 OAuth client secret
+                                            <small>默认关闭。关闭时仅同步规则、偏好和数据库，密钥保留在本机。</small>
+                                        </span>
+                                    </label>
+                                </div>
+
+                                <!-- Sync Comparison Card (新增) -->
+                                <div class="sync-config-card" id="sync-comparison-card">
+                                    <div class="sync-config-header">
+                                        <i class="fa-solid fa-scale-balanced"></i>
+                                        <span>同步内容</span>
+                                        <button class="btn-text btn-sm" onclick="refreshSyncStatus()"
+                                            style="margin-left: auto;">
+                                            <i class="fa-solid fa-refresh"></i> 刷新
+                                        </button>
+                                    </div>
+
+                                    <!-- 数据库对比 -->
+                                    <div class="sync-item-row" id="sync-db-row">
+                                        <div class="sync-item-icon"><i class="fa-solid fa-database"></i></div>
+                                        <div class="sync-item-info">
+                                            <strong>数据库</strong>
+                                            <div class="sync-compare">
+                                                <span class="cloud-info" id="sync-db-cloud"><i
+                                                        class="fa-solid fa-cloud"></i> 云端: 加载中...</span>
+                                                <span class="local-info" id="sync-db-local"><i
+                                                        class="fa-solid fa-laptop"></i> 本地: 加载中...</span>
+                                            </div>
+                                        </div>
+                                        <div class="sync-item-actions">
+                                            <button class="btn-sm btn-outline sync-btn-upload"
+                                                onclick="syncComponent('database', 'upload')" title="上传本地数据库到云端">
+                                                <span class="sync-action-title"><i class="fa-solid fa-cloud-arrow-up"></i> 上传到云端</span>
+                                                <span class="sync-direction">本地 → 云端</span>
+                                            </button>
+                                            <button class="btn-sm btn-outline sync-btn-download"
+                                                onclick="syncComponent('database', 'download')" title="下载云端数据库到本地">
+                                                <span class="sync-action-title"><i class="fa-solid fa-cloud-arrow-down"></i> 下载到本地</span>
+                                                <span class="sync-direction">云端 → 本地</span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- 配置对比 -->
+                                    <div class="sync-item-row" id="sync-config-row">
+                                        <div class="sync-item-icon"><i class="fa-solid fa-gear"></i></div>
+                                        <div class="sync-item-info">
+                                            <strong>配置 (AI规则/偏好，不含密钥)</strong>
+                                            <div class="sync-compare">
+                                                <span class="cloud-info" id="sync-config-cloud"><i
+                                                        class="fa-solid fa-cloud"></i> 云端: 加载中...</span>
+                                                <span class="local-info" id="sync-config-local"><i
+                                                        class="fa-solid fa-laptop"></i> 本地: 加载中...</span>
+                                            </div>
+                                        </div>
+                                        <div class="sync-item-actions">
+                                            <button class="btn-sm btn-outline sync-btn-upload"
+                                                onclick="syncComponent('config', 'upload')" title="上传本地配置到云端">
+                                                <span class="sync-action-title"><i class="fa-solid fa-cloud-arrow-up"></i> 上传到云端</span>
+                                                <span class="sync-direction">本地 → 云端</span>
+                                            </button>
+                                            <button class="btn-sm btn-outline sync-btn-download"
+                                                onclick="syncComponent('config', 'download')" title="下载云端配置到本地">
+                                                <span class="sync-action-title"><i class="fa-solid fa-cloud-arrow-down"></i> 下载到本地</span>
+                                                <span class="sync-direction">云端 → 本地</span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- 最后同步信息 -->
+                                    <div class="sync-last-info" id="sync-last-info">
+                                        <i class="fa-solid fa-clock-rotate-left"></i>
+                                        <span id="sync-last-text">暂无同步记录</span>
+                                    </div>
+                                </div>
+
+                                <!-- Warning Card -->
+                                <div class="sync-warning-card">
+                                    <i class="fa-solid fa-triangle-exclamation"></i>
+                                    <div>
+                                        <strong>单设备运行</strong>
+                                        <p>SQLite 数据库不支持并发写入。请确保同一时间只在一台设备上打开应用，否则可能导致数据损坏。</p>
+                                    </div>
+                                </div>
+
+                                <!-- Apply Button -->
+                                <button class="btn-primary btn-lg sync-apply-btn" onclick="applySyncSettings()">
+                                    <i class="fa-solid fa-cloud-arrow-up"></i> 智能同步
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="tab-models" class="tab-content">
+                        <div class="scrollable-content">
+                            <div class="tab-info">
+                                <p><i class="fa-solid fa-brain"></i> <strong>AI 引擎配置</strong>：配置用于图书分析的 AI 模型。至少需要配置一个
+                                    AI 引擎才能使用书籍信息识别功能。您可以同时配置多个引擎并在使用时切换。</p>
+                            </div>
+
+                            <div class="model-list">
+                                <!-- Gemini Card -->
+                                <div class="model-card" id="card-gemini">
+                                    <div class="card-header">
+                                        <h4><i class="fa-brands fa-google"></i> Gemini <span
+                                                id="status-dot-settings-gemini" class="status-dot" title="未检查"
+                                                style="width:8px;height:8px;margin-left:8px;display:inline-block;"></span>
+                                        </h4>
+                                        <span class="status-badge" id="status-gemini">未配置</span>
+                                    </div>
+                                    <div class="card-body hidden" id="edit-gemini">
+                                        <div class="form-group">
+                                            <label>API Key</label>
+                                            <input type="password" id="cfg-gemini-key" placeholder="输入 API Key">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Model</label>
+                                            <select id="cfg-gemini-model">
+                                                <option value="">请先验证</option>
+                                            </select>
+                                        </div>
+                                        <div class="card-actions">
+                                            <button class="btn-secondary btn-sm"
+                                                onclick="testConnection('gemini')">验证连接</button>
+                                            <button class="btn-primary btn-sm"
+                                                onclick="saveModelConfig('gemini')">保存</button>
+                                            <button class="btn-danger btn-sm"
+                                                onclick="clearModelConfig('gemini')">删除</button>
+                                        </div>
+                                    </div>
+                                    <div class="card-footer">
+                                        <button class="btn-text" onclick="toggleEdit('gemini')">配置 / 修改</button>
+                                    </div>
+                                </div>
+
+                                <!-- DeepSeek Card -->
+                                <div class="model-card" id="card-deepseek">
+                                    <div class="card-header">
+                                        <h4><i class="fa-solid fa-brain"></i> DeepSeek <span
+                                                id="status-dot-settings-deepseek" class="status-dot" title="未检查"
+                                                style="width:8px;height:8px;margin-left:8px;display:inline-block;"></span>
+                                        </h4>
+                                        <span class="status-badge" id="status-deepseek">未配置</span>
+                                    </div>
+                                    <div class="card-body hidden" id="edit-deepseek">
+                                        <div class="form-group">
+                                            <label>API Key</label>
+                                            <input type="password" id="cfg-deepseek-key" placeholder="输入 API Key">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Model</label>
+                                            <select id="cfg-deepseek-model">
+                                                <option value="">请先验证</option>
+                                            </select>
+                                        </div>
+                                        <div class="card-actions">
+                                            <button class="btn-secondary btn-sm"
+                                                onclick="testConnection('deepseek')">验证连接</button>
+                                            <button class="btn-primary btn-sm"
+                                                onclick="saveModelConfig('deepseek')">保存</button>
+                                            <button class="btn-danger btn-sm"
+                                                onclick="clearModelConfig('deepseek')">删除</button>
+                                        </div>
+                                    </div>
+                                    <div class="card-footer">
+                                        <button class="btn-text" onclick="toggleEdit('deepseek')">配置 / 修改</button>
+                                    </div>
+                                </div>
+
+                                <!-- Ollama Card -->
+                                <div class="model-card" id="card-ollama">
+                                    <div class="card-header">
+                                        <h4><i class="fa-solid fa-laptop-code"></i> Ollama (本地) <span
+                                                id="status-dot-settings-ollama" class="status-dot" title="未检查"
+                                                style="width:8px;height:8px;margin-left:8px;display:inline-block;"></span>
+                                        </h4>
+                                        <span class="status-badge" id="status-ollama">未配置</span>
+                                    </div>
+                                    <div class="card-body hidden" id="edit-ollama">
+                                        <div class="form-group">
+                                            <label>URL</label>
+                                            <input type="text" id="cfg-ollama-url" placeholder="http://127.0.0.1:11434">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Model</label>
+                                            <select id="cfg-ollama-model">
+                                                <option value="">请先验证</option>
+                                            </select>
+                                        </div>
+                                        <div class="card-actions">
+                                            <button class="btn-secondary btn-sm"
+                                                onclick="testConnection('ollama')">验证连接</button>
+                                            <button class="btn-primary btn-sm"
+                                                onclick="saveModelConfig('ollama')">保存</button>
+                                            <button class="btn-danger btn-sm"
+                                                onclick="clearModelConfig('ollama')">删除</button>
+                                        </div>
+                                    </div>
+                                    <div class="card-footer">
+                                        <button class="btn-text" onclick="toggleEdit('ollama')">配置 / 修改</button>
+                                    </div>
+                                </div>
+
+                                <!-- Custom Providers Container -->
+                                <div id="custom-providers-container"></div>
+
+                                <!-- Add Custom Provider Button -->
+                                <div class="model-card add-provider-card" onclick="openAddProviderModal()">
+                                    <div class="card-header" style="justify-content: center;">
+                                        <h4><i class="fa-solid fa-plus"></i> 添加自定义 Provider</h4>
+                                    </div>
+                                    <p class="help-text" style="text-align: center; padding: 12px;">
+                                        支持 OpenRouter, Groq, Azure, Claude 等任意 LiteLLM 兼容的 API
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="tab-formats" class="tab-content">
+                        <div class="scrollable-content">
+                            <div class="tab-info">
+                                <p><i class="fa-solid fa-file-circle-check"></i>
+                                    <strong>识别格式</strong>：只有加入这里的文件格式会参与扫描、入库、在库管理、相似搜索和数据库路径修复。该偏好会随跨平台配置同步；不会影响原文件内容。
+                                </p>
+                            </div>
+
+                            <div class="beta-feature-item">
+                                <div class="feature-header">
+                                    <h4><i class="fa-solid fa-list-check"></i> 已纳入格式</h4>
+                                </div>
+                                <p class="feature-desc">
+                                    添加后会立即统计当前配置目录中该格式涉及的文件数量；删除格式会同步从统计中移除。
+                                </p>
+                                <div id="book-extension-presets" class="format-preset-grid"></div>
+                                <div class="format-add-row">
+                                    <input type="text" id="book-extension-input" placeholder="输入格式，例如 epub 或 .pdf">
+                                    <button type="button" class="btn-secondary btn-sm" onclick="addBookExtension()">
+                                        <i class="fa-solid fa-plus"></i> 添加
+                                    </button>
+                                </div>
+                                <div id="book-extensions-list" class="format-tag-list"></div>
+                            </div>
+
+                            <div class="beta-feature-item">
+                                <div class="feature-header">
+                                    <h4><i class="fa-solid fa-chart-simple"></i> 格式数量</h4>
+                                    <button type="button" class="btn-text btn-sm" onclick="refreshBookExtensionCounts()">
+                                        <i class="fa-solid fa-rotate"></i> 刷新
+                                    </button>
+                                </div>
+                                <div id="book-extension-count-summary" class="format-count-summary"></div>
+                                <div id="book-extension-counts" class="format-count-list"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Features Tab -->
+                    <div id="tab-beta" class="tab-content">
+                        <div class="scrollable-content">
+                            <div class="tab-info">
+                                <p><i class="fa-solid fa-layer-group"></i>
+                                    <strong>高级功能</strong>：按使用场景管理搜索联动、文件写入、PDF 转换和外部服务。涉及写入原文件的选项默认关闭。
+                                </p>
+                            </div>
+
+                            <div class="settings-section-title">
+                                <i class="fa-solid fa-magnifying-glass-chart"></i>
+                                <span>搜索与内容展示</span>
+                            </div>
+
+                            <div class="advanced-feature-grid">
+                                <div class="ui-feature-card">
+                                    <div class="ui-feature-card-header">
+                                        <div class="ui-feature-icon" id="beta-icon-search">
+                                            <i class="fa-solid fa-magnifying-glass-location"></i>
+                                        </div>
+                                        <div class="ui-feature-info">
+                                            <h4>目标区域重复图书搜索</h4>
+                                            <p>在分析时自动搜索目标目录中相似的已整理图书</p>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="beta-similar-search">
+                                            <span class="slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="beta-feature-item">
+                                    <div class="feature-header">
+                                        <h4><i class="fa-solid fa-database"></i> 优先加载简介/目录</h4>
+                                        <div class="btn-toggle-group" id="beta-data-priority-group">
+                                            <button type="button" class="btn-toggle active" data-value="database"
+                                                onclick="setDataPriority('database')">
+                                                <i class="fa-solid fa-database"></i> 数据库
+                                            </button>
+                                            <button type="button" class="btn-toggle" data-value="metadata"
+                                                onclick="setDataPriority('metadata')">
+                                                <i class="fa-solid fa-file-lines"></i> 元数据
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <p class="feature-desc">
+                                        选择加载增强简介和目录时的数据源优先级。数据库优先可确保编辑后的内容优先显示；元数据优先则读取文件内嵌的信息。
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="settings-section-title">
+                                <i class="fa-solid fa-file-pen"></i>
+                                <span>文件写入</span>
+                            </div>
+
+                            <div class="advanced-feature-grid">
+                                <div class="ui-feature-card">
+                                    <div class="ui-feature-card-header">
+                                        <div class="ui-feature-icon" id="beta-icon-epub">
+                                            <i class="fa-solid fa-file-pen"></i>
+                                        </div>
+                                        <div class="ui-feature-info">
+                                            <h4>EPUB 元数据写入</h4>
+                                            <p>将最新的标题、作者等元数据写入 EPUB 文件内部</p>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="beta-metadata-write-epub">
+                                            <span class="slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="ui-feature-card">
+                                    <div class="ui-feature-card-header">
+                                        <div class="ui-feature-icon" id="beta-icon-epub-summary">
+                                            <i class="fa-solid fa-file-circle-plus"></i>
+                                        </div>
+                                        <div class="ui-feature-info">
+                                            <h4>EPUB 增强简介写入</h4>
+                                            <p>将 AI 生成的增强简介追加写入 EPUB 的 Description 字段</p>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="beta-summary-write-epub">
+                                            <span class="slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="ui-feature-card">
+                                    <div class="ui-feature-card-header">
+                                        <div class="ui-feature-icon" id="beta-icon-pdf">
+                                            <i class="fa-solid fa-file-pdf"></i>
+                                        </div>
+                                        <div class="ui-feature-info">
+                                            <h4>PDF 元数据写入</h4>
+                                            <p>将最新的标题、作者等元数据写入 PDF 文件属性</p>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="beta-metadata-write-pdf">
+                                            <span class="slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="ui-feature-card">
+                                    <div class="ui-feature-card-header">
+                                        <div class="ui-feature-icon" id="beta-icon-pdf-summary">
+                                            <i class="fa-solid fa-file-circle-plus"></i>
+                                        </div>
+                                        <div class="ui-feature-info">
+                                            <h4>PDF 增强简介写入</h4>
+                                            <p>将 AI 生成的增强简介追加写入 PDF 的 Subject/Description 字段</p>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="beta-summary-write-pdf">
+                                            <span class="slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="settings-section-title">
+                                <i class="fa-solid fa-cloud-arrow-up"></i>
+                                <span>外部集成与转换</span>
+                            </div>
+
+                            <div class="beta-feature-item">
+                                <div class="feature-header">
+                                    <h4><i class="fa-brands fa-google-drive"></i> Google Drive 集成</h4>
+                                </div>
+                                <p class="feature-desc">
+                                    将转换的 PDF 自动上传到 Google Drive，便于与 NotebookLM 集成。
+                                </p>
+
+                                <!-- 连接状态 -->
+                                <div class="gdrive-status-row" style="margin: 12px 0;">
+                                    <span id="gdrive-status-indicator" class="status-dot disconnected"></span>
+                                    <span id="gdrive-status-text">未连接</span>
+                                    <button type="button" class="btn-secondary btn-sm" id="gdrive-auth-btn"
+                                        onclick="authorizeGoogleDrive()">
+                                        <i class="fa-solid fa-link"></i> 授权连接
+                                    </button>
+                                    <button type="button" class="btn-danger btn-sm hidden" id="gdrive-disconnect-btn"
+                                        onclick="disconnectGoogleDrive()">
+                                        <i class="fa-solid fa-unlink"></i> 断开
+                                    </button>
+                                </div>
+
+                                <!-- 配置区域 (未配置时显示) -->
+                                <div id="gdrive-setup-section" class="hidden"
+                                    style="margin-top: 8px; padding: 12px; background: rgba(255,255,255,0.05); border-radius: 6px;">
+                                    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+                                        <button type="button" class="btn-secondary btn-sm"
+                                            onclick="document.getElementById('file-upload-credentials').click()">
+                                            <i class="fa-solid fa-upload"></i> 上传凭据 (client_secrets.json)
+                                        </button>
+                                        <input type="file" id="file-upload-credentials" style="display: none"
+                                            accept=".json" onchange="uploadGDriveCredentials(this)">
+
+                                        <button type="button" class="btn-text btn-sm" onclick="toggleGDriveHelp()">
+                                            <i class="fa-solid fa-question-circle"></i> 如何获取配置?
+                                        </button>
+                                    </div>
+
+                                    <!-- 帮助说明 -->
+                                    <div id="gdrive-help-text" class="hidden"
+                                        style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5;">
+                                        <p>1. 访问 <a href="https://console.cloud.google.com/" target="_blank"
+                                                style="color: var(--primary-color);">Google Cloud Console</a>。</p>
+                                        <p>2. 创建项目并启用 <strong>Google Drive API</strong>。</p>
+                                        <p>3. 在"凭据"页面创建 <strong>OAuth 客户端 ID</strong> (应用类型选"桌面应用")。</p>
+                                        <p>4. 下载 JSON 文件并在此上传。</p>
+                                        <p style="margin-top: 4px; font-size: 0.85rem; opacity: 0.8;">(详细指南请查看
+                                            docs/google_drive_auth_guide.md)</p>
+                                    </div>
+                                </div>
+
+                                <!-- 目标文件夹（已连接时显示） -->
+                                <div id="gdrive-folder-section" class="hidden" style="margin-top: 12px;">
+                                    <label class="input-label">目标文件夹</label>
+                                    <div class="input-group">
+                                        <select id="gdrive-folder-select">
+                                            <option value="">根目录 (我的云端硬盘)</option>
+                                        </select>
+                                        <button type="button" class="btn-secondary btn-sm"
+                                            onclick="refreshGDriveFolders()">
+                                            <i class="fa-solid fa-sync"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- 自动上传开关（已连接时显示） -->
+                                <div id="gdrive-auto-section" class="hidden" style="margin-top: 12px;">
+                                    <label class="toggle-label">
+                                        <input type="checkbox" id="gdrive-auto-upload">
+                                        <span>PDF 转换后自动上传</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="beta-feature-item" style="margin-top: 16px;">
+                                <div class="feature-header">
+                                    <h4><i class="fa-solid fa-file-export"></i> 需转换格式</h4>
+                                </div>
+                                <p class="feature-desc">
+                                    以下格式将在导出时转换为 PDF（NotebookLLM 不原生支持）。其他格式可直接上传。
+                                </p>
+                                <div style="display: flex; gap: 8px; margin-top: 8px;">
+                                    <input type="text" id="convert-format-input" placeholder="输入格式 (如 epub)"
+                                        style="flex: 1; height: 32px; padding: 0 10px;">
+                                    <button type="button" class="btn-secondary btn-sm" onclick="addConvertFormat()">
+                                        <i class="fa-solid fa-plus"></i> 添加
+                                    </button>
+                                </div>
+                                <div id="convert-formats-list"
+                                    style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;">
+                                    <!-- 格式标签由 JS 动态生成 -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Global Footer for Settings Modal -->
+                    <div class="modal-footer">
+                        <button type="button" class="btn-primary" onclick="saveGeneralConfig()" id="save-general-btn">
+                            <i class="fa-solid fa-floppy-disk"></i> 保存设置
+                        </button>
+                        <button class="btn-primary hidden" onclick="saveBetaConfig()" id="save-beta-btn">
+                            <i class="fa-solid fa-floppy-disk"></i> 保存高级设置
+                        </button>
+                        <button class="btn-primary hidden" onclick="saveBookExtensions()" id="save-formats-btn">
+                            <i class="fa-solid fa-floppy-disk"></i> 保存识别格式
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Config Modal -->
+        <div id="ai-config-modal" class="modal hidden">
+            <div class="modal-content glass-panel large-modal fixed-footer-modal">
+                <div class="modal-header">
+                    <h3><i class="fa-solid fa-brain"></i> AI 配置</h3>
+                    <button id="close-ai-config" class="btn-close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="modal-body modal-body-fixed">
+                    <div class="settings-tabs">
+                        <button class="tab-btn active" data-tab="core" onclick="switchAITab('core')">
+                            核心规则
+                            <span class="tab-status-indicator active"></span>
+                        </button>
+                        <button class="tab-btn" data-tab="enhanced" onclick="switchAITab('enhanced')">
+                            增强规则
+                            <span id="tab-status-enhanced" class="tab-status-indicator"></span>
+                        </button>
+                        <button class="tab-btn" data-tab="additional" onclick="switchAITab('additional')">
+                            附加规则
+                            <span id="tab-status-additional" class="tab-status-indicator"></span>
+                        </button>
+                        <button class="tab-btn" data-tab="historical" onclick="switchAITab('historical')">
+                            历史数据参考
+                            <span id="tab-status-historical" class="tab-status-indicator"></span>
+                        </button>
+                        <button class="tab-btn" data-tab="extraction" onclick="switchAITab('extraction')">
+                            字段提取
+                            <span id="tab-status-extraction" class="tab-status-indicator"></span>
+                        </button>
+                        <button class="tab-btn" data-tab="content-search" onclick="switchAITab('content-search')">
+                            内容与搜索控制
+                            <span id="tab-status-content-search" class="tab-status-indicator"></span>
+                        </button>
+                        <button class="tab-btn" data-tab="toc-rules" onclick="switchAITab('toc-rules')">
+                            目录规则
+                            <span id="tab-status-toc-rules" class="tab-status-indicator"></span>
+                        </button>
+                    </div>
+
+                    <!-- Core Rules Tab -->
+                    <div id="ai-tab-core" class="tab-content active">
+                        <div class="scrollable-content">
+                            <div class="tab-info">
+                                <p><i class="fa-solid fa-info-circle"></i> 核心规则定义了AI分类的基础逻辑，始终启用且优先级最高</p>
+                            </div>
+                            <div class="form-group">
+                                <label>核心规则内容</label>
+                                <textarea id="core-rules-content" rows="12" class="rules-textarea"></textarea>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn-secondary" onclick="resetCoreRules()">
+                                <i class="fa-solid fa-rotate-left"></i> 恢复默认
+                            </button>
+                            <button class="btn-primary" onclick="saveCoreRules()">
+                                <i class="fa-solid fa-floppy-disk"></i> 保存核心规则
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Enhanced Rules Tab -->
+                    <div id="ai-tab-enhanced" class="tab-content">
+                        <div class="scrollable-content">
+                            <!-- Enhanced Rules Master Toggle Card -->
+                            <div class="ui-feature-card">
+                                <div class="ui-feature-card-header">
+                                    <div class="ui-feature-icon" id="enhanced-icon-large">
+                                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                                    </div>
+                                    <div class="ui-feature-info">
+                                        <h4>增强模式</h4>
+                                        <p>启用后，AI 将生成简单的图书简介、详细要点和应用场景</p>
+                                    </div>
+                                    <label class="toggle-switch large">
+                                        <input type="checkbox" id="enhanced-mode-enabled">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="tab-info" style="margin-top: 16px;">
+                                <p><i class="fa-solid fa-pen-nib"></i> 配置增强模式下生成内容的提示词模板</p>
+                            </div>
+
+                            <div class="form-group">
+                                <label>图书简介提示词</label>
+                                <textarea id="enhanced-summary-prompt" rows="3" class="rules-textarea"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>详细要点提示词</label>
+                                <textarea id="enhanced-details-prompt" rows="3" class="rules-textarea"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>具体应用提示词</label>
+                                <textarea id="enhanced-applications-prompt" rows="3" class="rules-textarea"></textarea>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn-secondary" onclick="resetEnhancedRules()">
+                                <i class="fa-solid fa-rotate-left"></i> 恢复默认
+                            </button>
+                            <button class="btn-primary" onclick="saveEnhancedRules()">
+                                <i class="fa-solid fa-floppy-disk"></i> 保存增强规则
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Additional Rules Tab -->
+                    <div id="ai-tab-additional" class="tab-content">
+                        <div class="scrollable-content">
+                            <!-- Additional Rules Tab Content (Revised for UI Standardization) -->
+
+                            <!-- 1. Enable/Disable Card (UI Status Card style) -->
+                            <div class="ui-status-card">
+                                <div class="ui-status-header">
+                                    <div class="ui-status-icon">
+                                        <i class="fa-solid fa-list-check"></i>
+                                    </div>
+                                    <div class="ui-status-info">
+                                        <h4>附加规则</h4>
+                                        <div
+                                            style="display: flex; align-items: center; justify-content: space-between;">
+                                            <p class="text-muted">补充核心规则，用于个性化分类</p>
+                                            <label class="toggle-switch large">
+                                                <input type="checkbox" id="additional-rules-enabled">
+                                                <span class="slider"></span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 2. Settings Panel (UI Panel style) -->
+                            <div class="ui-panel">
+                                <div class="ui-panel-header">
+                                    <i class="fa-solid fa-sliders"></i>
+                                    <span>规则设置</span>
+                                </div>
+
+                                <div class="ui-list-item">
+                                    <div class="ui-item-icon"><i class="fa-solid fa-hashtag"></i></div>
+                                    <div style="flex: 1;">
+                                        <span style="font-size: 0.9rem; font-weight: 500;">生效规则数量</span>
+                                        <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">AI 分析时保留的规则条数
+                                            (1-20)</p>
+                                    </div>
+                                    <input type="number" id="ai-rules-count" min="1" max="20" value="7"
+                                        style="width: 64px; height: 32px; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); border-radius: 6px; color: var(--text-main); text-align: center;">
+                                </div>
+                            </div>
+
+                            <!-- 3. Rules List Panel (UI Panel style) -->
+                            <div class="ui-panel" id="additional-rules-container"
+                                style="padding: 0; overflow: hidden; display: flex; flex-direction: column;">
+                                <div class="rules-header"
+                                    style="padding: 12px 16px; border-bottom: 1px solid var(--glass-border); margin: 0;">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <i class="fa-solid fa-list" style="color: var(--primary-color);"></i>
+                                        <h4 style="margin: 0; font-size: 0.95rem;">规则列表</h4>
+                                    </div>
+                                    <div class="rules-actions">
+                                        <button class="btn-secondary btn-sm" onclick="openCoreRulesRef()">
+                                            <i class="fa-solid fa-eye"></i> 核心规则
+                                        </button>
+                                        <button class="btn-primary btn-sm" onclick="optimizeRulesWithAI()">
+                                            <i class="fa-solid fa-wand-magic-sparkles"></i> AI优化
+                                        </button>
+                                        <button class="btn-success btn-sm" onclick="addAdditionalRule()">
+                                            <i class="fa-solid fa-plus"></i> 添加
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div id="additional-rules-list" class="rules-list"
+                                    style="padding: 10px; max-height: 400px; overflow-y: auto;">
+                                    <!-- Rules will be dynamically added here -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer"
+                            style="display: flex; justify-content: space-between; align-items: center;">
+                            <!-- Source Toggle (left) -->
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span class="label-text"
+                                    style="font-size: 0.85rem; color: var(--text-muted);">添加来源：</span>
+                                <div class="btn-toggle-group">
+                                    <button type="button" id="source-manual" class="btn-toggle active"
+                                        onclick="window.setRuleSource('manual')">
+                                        <i class="fa-solid fa-hand"></i> 手工
+                                    </button>
+                                    <button type="button" id="source-ai" class="btn-toggle"
+                                        onclick="window.setRuleSource('ai')">
+                                        <i class="fa-solid fa-robot"></i> AI
+                                    </button>
+                                </div>
+                            </div>
+                            <!-- Save Button (right) -->
+                            <button class="btn-primary" onclick="saveAdditionalRules()">
+                                <i class="fa-solid fa-floppy-disk"></i> 保存附加规则
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Historical Reference Tab -->
+                    <div id="ai-tab-historical" class="tab-content">
+                        <div class="scrollable-content">
+                            <!-- 历史数据参考卡片 (UI Feature Card) -->
+                            <div class="ui-feature-card">
+                                <div class="ui-feature-card-header">
+                                    <div class="ui-feature-icon" id="historical-icon">
+                                        <i class="fa-solid fa-clock-rotate-left"></i>
+                                    </div>
+                                    <div class="ui-feature-info">
+                                        <h4>历史数据参考</h4>
+                                        <p>参考历史转移记录来理解您的分类习惯</p>
+                                    </div>
+                                    <label class="toggle-switch large">
+                                        <input type="checkbox" id="historical-enabled">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+
+                                <!-- Range Slider inside card (optional, keeping outside for now or could move in) 
+                                     User request just said "adopt image 2 style" for the switch part. 
+                                     The slider is detail configuration. Let's keep slider below or inside? 
+                                     Image 2 (Sync) has detail panel *outside* the main card or *inside* but hidden.
+                                     Here the slider is always visible if enabled? 
+                                     Let's keep the slider *outside* the header card for now to mimic the sync status card which is just header. 
+                                     Wait, sync settings has a "Sync Settings Panel" below it.
+                                     Here we have form-group below. 
+                                     Let's wrap the form-group in a div that toggles visibility? 
+                                     The current code didn't toggle visibility of form-group, just the checkbox.
+                                     I will keep form-group outside the card-header style div, but maybe inside the card container if I want it to look like one unit?
+                                     The user said "Image 1 (Content control) ... adopt Image 2 (Sync) style".
+                                     The sync card is JUST the header part. The settings are below.
+                                     So I will replace the top toggle section with the card.
+                                -->
+                            </div>
+
+                            <div class="form-group" style="margin-top: 20px;">
+                                <label>参考时间范围（天）</label>
+                                <div class="range-input-group">
+                                    <input type="range" id="days-range" min="7" max="90" value="30"
+                                        oninput="updateDaysDisplay()">
+                                    <span id="days-display" class="range-value">30 天</span>
+                                </div>
+                                <p class="help-text">AI将参考最近 <strong id="days-text">30</strong> 天内的转移记录</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button class="btn-primary" onclick="saveHistoricalSettings()">
+                                <i class="fa-solid fa-floppy-disk"></i> 保存设置
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Field Extraction Tab -->
+                    <div id="ai-tab-extraction" class="tab-content">
+                        <div class="scrollable-content">
+                            <div class="tab-info">
+                                <p><i class="fa-solid fa-info-circle"></i> 配置AI提取图书元数据时的提示词</p>
+                            </div>
+
+                            <div class="form-group">
+                                <label>书名提取提示词</label>
+                                <input type="text" id="prompt-title" class="full-width">
+                            </div>
+                            <div class="form-group">
+                                <label>作者提取提示词</label>
+                                <input type="text" id="prompt-author" class="full-width">
+                            </div>
+                            <div class="form-group">
+                                <label>出版社提取提示词</label>
+                                <input type="text" id="prompt-publisher" class="full-width">
+                            </div>
+                            <div class="form-group">
+                                <label>标签提取提示词</label>
+                                <input type="text" id="prompt-tags" class="full-width">
+                            </div>
+                            <div class="form-group">
+                                <label>丛书提取提示词</label>
+                                <input type="text" id="prompt-series" class="full-width">
+                            </div>
+                            <div class="form-group">
+                                <label>文件名生成模板 <span class="text-muted text-sm">(可用变量: {title}, {author}, {publisher},
+                                        {series}, {tags})</span></label>
+                                <input type="text" id="prompt-filename" placeholder="例如: {title} - {author}">
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button class="btn-secondary" onclick="resetExtractionRules()">
+                                <i class="fa-solid fa-rotate-left"></i> 恢复默认
+                            </button>
+                            <button class="btn-primary" onclick="saveExtractionRules()">
+                                <i class="fa-solid fa-floppy-disk"></i> 保存提取规则
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Content and Search Control Tab -->
+                    <div id="ai-tab-content-search" class="tab-content">
+                        <div class="scrollable-content">
+                            <!-- 启用自定义配置卡片 (UI Feature Card) -->
+                            <div class="ui-feature-card">
+                                <div class="ui-feature-card-header">
+                                    <div class="ui-feature-icon" id="content-ctrl-icon">
+                                        <i class="fa-solid fa-sliders"></i>
+                                    </div>
+                                    <div class="ui-feature-info">
+                                        <h4>自定义内容与搜索控制</h4>
+                                        <p>深度控制 AI 分析时的内容截取与在线搜索行为</p>
+                                    </div>
+                                    <label class="toggle-switch large">
+                                        <input type="checkbox" id="ctrl-enabled">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <!-- Note: The help text "关闭后..." is implied by UI state, or can be added below if needed. The new UI is self-explanatory with the active state. -->
+
+                            <div class="config-section">
+                                <h4><i class="fa-solid fa-file-lines"></i> AI 输出控制</h4>
+                                <div class="form-group">
+                                    <label>图书简介字数限制（汉字）</label>
+                                    <input type="number" id="ctrl-summary-max-chars" min="50" max="500"
+                                        placeholder="100">
+                                    <p class="help-text">AI 生成图书简介的最大字数（默认100字）</p>
+                                </div>
+                            </div>
+
+                            <div class="config-section">
+                                <h4><i class="fa-solid fa-book-open"></i> 原始读取限制</h4>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>PDF 最大预读取页数</label>
+                                        <input type="number" id="ctrl-pdf-max-pages" min="1" max="50" placeholder="10">
+                                        <p class="help-text">从 PDF 文件前面读取多少页用于分析（默认10页）</p>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>EPUB 最大预读取章节数</label>
+                                        <input type="number" id="ctrl-epub-max-chapters" min="1" max="50"
+                                            placeholder="10">
+                                        <p class="help-text">从 EPUB 文件中读取多少个章节用于分析（默认10章）</p>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>原始扫描字符总上限</label>
+                                    <input type="number" id="ctrl-raw-scan-limit" min="500" max="10000"
+                                        placeholder="3000">
+                                    <p class="help-text">防止读取过多内容导致内存溢出（默认3000字符）</p>
+                                </div>
+                            </div>
+
+                            <div class="config-section">
+                                <h4><i class="fa-solid fa-scissors"></i> 文本提取策略</h4>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>标准模式投喂字数</label>
+                                        <input type="number" id="ctrl-standard-chars" min="100" max="5000"
+                                            placeholder="1500" oninput="updateTailCharsDisplay()">
+                                        <p class="help-text">未启用搜索时提取的文本长度（默认1500字符）</p>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>搜索模式投喂字数</label>
+                                        <input type="number" id="ctrl-search-chars" min="100" max="5000"
+                                            placeholder="800" oninput="updateTailCharsDisplay()">
+                                        <p class="help-text">启用搜索时提取的文本长度，为搜索结果预留Token（默认800字符）</p>
+                                    </div>
+                                </div>
+
+                                <div class="toggle-section">
+                                    <label class="toggle-switch large">
+                                        <input type="checkbox" id="ctrl-adaptive-extraction">
+                                        <span class="slider"></span>
+                                        <span class="label-text">启用智能截取（掐头去尾）</span>
+                                    </label>
+                                    <p class="help-text">启用后会同时保留文本开头和结尾，中间部分省略</p>
+                                </div>
+
+                                <div id="adaptive-settings" class="form-row">
+                                    <div class="form-group">
+                                        <label>头部保留字符数</label>
+                                        <input type="number" id="ctrl-head-chars" min="100" max="2000" placeholder="500"
+                                            oninput="updateTailCharsDisplay()">
+                                        <p class="help-text">智能截取时保留开头多少字符（默认500字符）</p>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>尾部保留字符数（动态计算）</label>
+                                        <div class="tail-chars-display">
+                                            <div class="tail-mode-item">
+                                                <span class="mode-label">标准模式:</span>
+                                                <span id="tail-standard-display" class="tail-value">1000 字符</span>
+                                            </div>
+                                            <div class="tail-mode-item">
+                                                <span class="mode-label">搜索模式:</span>
+                                                <span id="tail-search-display" class="tail-value">300 字符</span>
+                                            </div>
+                                        </div>
+                                        <p class="help-text">根据总字数和头部字符数自动计算</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="config-section">
+                                <h4><i class="fa-solid fa-magnifying-glass"></i> 搜索参数控制</h4>
+                                <div class="form-group">
+                                    <label>引用搜索结果条数</label>
+                                    <div class="range-input-group">
+                                        <input type="range" id="ctrl-search-count" min="1" max="10" value="3"
+                                            oninput="updateSearchCountDisplay()">
+                                        <span id="search-count-display" class="range-value">3 条</span>
+                                    </div>
+                                    <p class="help-text">当启用在线搜索时，引用前几条搜索结果（默认3条）</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button class="btn-secondary" onclick="resetContentSearchControl()">
+                                <i class="fa-solid fa-rotate-left"></i> 恢复默认
+                            </button>
+                            <button class="btn-primary" onclick="saveContentSearchControl()">
+                                <i class="fa-solid fa-floppy-disk"></i> 保存配置
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- TOC Rules Tab -->
+                    <div id="ai-tab-toc-rules" class="tab-content">
+                        <div class="scrollable-content">
+                            <div class="tab-info">
+                                <p><i class="fa-solid fa-info-circle"></i> 配置 AI 如何处理图书目录。可以整理已有目录，或从内容中提取目录。</p>
+                            </div>
+
+                            <div class="config-section">
+                                <h4><i class="fa-solid fa-list-check"></i> 模式一：整理已有目录</h4>
+                                <div class="toggle-section">
+                                    <label class="toggle-switch large">
+                                        <input type="checkbox" id="toc-organize-enabled">
+                                        <span class="slider"></span>
+                                        <span class="label-text">启用 AI 整理</span>
+                                    </label>
+                                    <p class="help-text">使用 AI 将原始目录整理成带编号的层级格式</p>
+                                </div>
+                                <div class="form-group">
+                                    <label>整理提示词</label>
+                                    <textarea id="toc-organize-prompt" rows="6"
+                                        placeholder="请将以下图书目录整理成带编号的层级格式..."></textarea>
+                                    <p class="help-text">使用 {toc_content} 作为原始目录的占位符</p>
+                                </div>
+                            </div>
+
+                            <div class="config-section">
+                                <h4><i class="fa-solid fa-file-lines"></i> 模式二：从内容提取</h4>
+                                <div class="toggle-section">
+                                    <label class="toggle-switch large">
+                                        <input type="checkbox" id="toc-extract-enabled">
+                                        <span class="slider"></span>
+                                        <span class="label-text">启用内容提取</span>
+                                    </label>
+                                    <p class="help-text">从图书前几页/章节内容中提取目录结构</p>
+                                </div>
+                                <div class="form-group">
+                                    <label>提取页数/章节数</label>
+                                    <input type="number" id="toc-extract-pages" min="1" max="30" placeholder="10">
+                                    <p class="help-text">从图书开头提取多少页（PDF）或章节（EPUB）</p>
+                                </div>
+                                <div class="form-group">
+                                    <label>提取提示词</label>
+                                    <textarea id="toc-extract-prompt" rows="6"
+                                        placeholder="请从以下图书内容中识别并提取目录结构..."></textarea>
+                                    <p class="help-text">使用 {content} 作为内容的占位符</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button class="btn-secondary" onclick="resetTocRules()">
+                                <i class="fa-solid fa-rotate-left"></i> 恢复默认
+                            </button>
+                            <button class="btn-primary" onclick="saveTocRules()">
+                                <i class="fa-solid fa-floppy-disk"></i> 保存目录规则
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Directory Picker Modal -->
+        <div id="dir-picker-modal" class="modal hidden">
+            <div class="modal-content glass-panel fixed-footer-modal">
+                <div class="modal-header">
+                    <h3>选择目录</h3>
+                    <button id="close-dir-picker" class="btn-close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="modal-body modal-body-fixed">
+                    <div class="scrollable-content">
+                        <div class="current-path-display" id="picker-current-path">/</div>
+                        <div class="dir-list" id="picker-list">
+                            <!-- Directories will be injected here -->
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-primary" id="picker-select-btn">
+                            <i class="fa-solid fa-check"></i> 选择当前目录
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Batch Process Modal -->
+        <div id="batch-modal" class="modal hidden">
+            <div class="modal-content glass-panel large-modal fixed-footer-modal">
+                <div class="modal-header batch-header">
+                    <div class="header-left">
+                        <h3><i class="fa-solid fa-layer-group"></i> 批量处理</h3>
+                        <div class="batch-progress-bar inline-progress">
+                            <div class="progress-track">
+                                <div id="batch-progress" class="progress-fill" style="width: 0%"></div>
+                            </div>
+                            <span id="batch-status-text" class="progress-text">准备就绪</span>
+                        </div>
+                    </div>
+                    <button id="close-batch" class="btn-close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="modal-body modal-body-fixed">
+                    <div class="scrollable-content">
+                        <!-- Phase 1: Log -->
+                        <div class="batch-log" id="batch-log">
+                            <!-- Logs -->
+                        </div>
+
+                        <!-- Phase 2: Review Table -->
+                        <div id="batch-review-area" class="hidden">
+                            <table class="records-table batch-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 35%;">文件名</th>
+                                        <th style="width: 45%;">建议目标</th>
+                                        <th style="width: 20%;">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="review-list">
+                                    <!-- Items -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button id="cancel-batch-btn" class="btn-secondary hidden">
+                            <i class="fa-solid fa-xmark"></i> 取消
+                        </button>
+                        <button id="start-batch-btn" class="btn-primary">
+                            <i class="fa-solid fa-play"></i> 开始分析
+                        </button>
+                        <button id="execute-batch-btn" class="btn-success hidden">
+                            <i class="fa-solid fa-check"></i> 确认并执行
+                        </button>
+                        <button id="stop-batch-btn" class="btn-danger hidden">
+                            <i class="fa-solid fa-stop"></i> 停止
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="help-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-book-open"></i> 使用说明</h2>
+                <button id="close-help" class="btn-close">×</button>
+            </div>
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                <div class="help-section">
+                    <h3>📚 快速上手流程</h3>
+                    <ol>
+                        <li><strong>配置目录</strong>：点击右上角"设置"按钮，在"通用设置"中配置源目录（待整理的图书位置）和目标目录（整理后的存放位置）</li>
+                        <li><strong>配置 AI 模型</strong>：在"设置" → "AI 模型"中选择并配置至少一个 AI 引擎（Gemini/DeepSeek/Ollama）</li>
+                        <li><strong>刷新图书列表</strong>：点击右上角"刷新"按钮，左侧会显示所有待整理的图书</li>
+                        <li><strong>选择图书</strong>：从左侧列表点击要处理的图书，右侧会显示详细信息</li>
+                        <li><strong>AI 分析</strong>：点击"开始分析"，AI 会自动识别图书分类和元数据信息</li>
+                        <li><strong>编辑元数据</strong>：可以在"元数据编辑"区域修改书名、作者、出版社、丛书、标签等信息，文件名会实时预览</li>
+                        <li><strong>保存或转移</strong>：点击"确认修改图书信息"保存元数据，或点击 AI 推荐分类旁的"移动"按钮将图书转移到目标目录</li>
+                    </ol>
+                </div>
+
+                <div class="help-section">
+                    <h3>🎯 核心功能说明</h3>
+                    <ul>
+                        <li><strong>AI 识别信息</strong>：一键自动提取书名、作者（含国别标记）、出版社、丛书、标签等完整元数据</li>
+                        <li><strong>确认修改图书信息</strong>:应用元数据修改并重命名文件,但保持文件在原位置不移动。适合只需要整理文件名的场景</li>
+                        <li><strong>移动按钮</strong>:应用元数据修改后,将图书移动到目标目录的指定分类。会自动创建不存在的分类文件夹</li>
+                        <li><strong>跳过/删除</strong>:暂时跳过当前图书稍后处理,或直接删除不需要的文件</li>
+                        <li><strong>联网搜索</strong>:位于程序顶部的全局开关,启用后所有处理模式(顺序、批量、单本)都会在线搜索图书信息,提高识别准确性(需要网络连接)。会记住上次设置状态
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3>🤖 AI 配置详解</h3>
+                    <ul>
+                        <li><strong>核心规则</strong>：定义 AI 分类的基础逻辑和原则，始终启用且优先级最高。建议保持默认值，除非有特殊需求</li>
+                        <li><strong>附加规则</strong>：自定义的补充规则，可以根据个人分类习惯添加提示。可启用/禁用，支持 AI 自动优化</li>
+                        <li><strong>历史数据参考</strong>：启用后 AI 会参考最近的图书转移记录，学习您的分类习惯，提高准确性</li>
+                        <li><strong>字段提取</strong>：自定义元数据提取提示词和文件名生成模板，适合高级用户精细控制</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3>📝 文件名模板使用</h3>
+                    <p>在 AI 配置 → 字段提取中，可以自定义文件名生成模板，支持以下变量：</p>
+                    <ul>
+                        <li><code>{title}</code> - 书名（含副标题）</li>
+                        <li><code>{author}</code> - 作者（自动包含国别标记，如 [美] 作者1 & 作者2，中国作者自动隐藏国别）</li>
+                        <li><code>{publisher}</code> - 出版社名称</li>
+                        <li><code>{series}</code> - 丛书/系列名称</li>
+                        <li><code>{tags}</code> - 标签（如有多个会用逗号分隔）</li>
+                    </ul>
+                    <p><strong>常用模板示例</strong>：</p>
+                    <ul>
+                        <li><code>{title} - {author}</code> → 《时代的喧嚣》 - [俄] 曼德尔施塔姆</li>
+                        <li><code>[{author}] {title}</code> → [日] 伊藤清 《世界是概率的》</li>
+                        <li><code>{title} ({publisher})</code> → 《什么是权力》 (中信出版社)</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3>⚡ 批量处理模式</h3>
+                    <ul>
+                        <li><strong>批量分析</strong>：点击"批量处理"按钮，AI 会一次性分析所有待处理图书，生成完整的处理计划</li>
+                        <li><strong>审核执行</strong>：分析完成后会显示汇总表格，您可以逐个审核 AI 的建议，然后批量执行转移</li>
+                        <li><strong>顺序处理</strong>：点击"顺序处理"按钮，按顺序逐本处理图书，适合需要人工确认每本书的场景</li>
+                        <li><strong>推荐使用</strong>：首次使用建议用顺序模式熟悉流程，熟练后可使用批量模式提高效率</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3>🔧 高级功能</h3>
+                    <ul>
+                        <li><strong>目标区域重复图书搜索</strong>：自动在目标目录中搜索书名相似的图书，帮助发现重复收藏</li>
+                        <li><strong>EPUB 元数据写入</strong>：将识别的元数据写入 EPUB 文件内部，便于其他软件（如 Calibre）识别</li>
+                        <li><strong>PDF 元数据写入</strong>：将识别的元数据写入 PDF 文件内部，使用 XMP 格式，完全兼容 Calibre</li>
+                        <li><strong>风险提示</strong>：文件写入会修改源文件，默认关闭；启用前建议确认已有备份</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3>🚦 AI 模型状态指示灯</h3>
+                    <ul>
+                        <li><strong>🟢 绿色</strong>：模型连接正常，可正常使用</li>
+                        <li><strong>🔴 红色</strong>：模型连接失败或未配置</li>
+                        <li><strong>检查时机</strong>：当前选中模型每 15 秒自动刷新；打开下拉菜单或进入 AI 模型设置页时刷新全部</li>
+                        <li><strong>不消耗 Token</strong>：状态检查使用管理接口（list_models），不会产生 API 费用</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3>☁️ 数据同步与维护</h3>
+                    <ul>
+                        <li><strong>iCloud 同步</strong>：
+                            <ul>
+                                <li>在“设置”中配置 iCloud 同步目录后，可将配置和数据库自动备份到云端</li>
+                                <li><strong>顶部云按钮</strong>：点击导航栏上的云图标，可手动触发立即同步</li>
+                                <li><strong>路径支持</strong>：支持使用 <code>~</code> 简写路径（如 <code>~/Library/...</code>），系统会自动识别
+                                </li>
+                            </ul>
+                        </li>
+                        <li><strong>图书馆查重</strong>：
+                            <ul>
+                                <li>点击顶部“同步”菜单中的“图书馆查重”，系统会自动扫描并分组展示相似图书</li>
+                                <li><strong>忽略分组</strong>：确认非重复的内容可点击“忽略”，后续扫描将自动跳过</li>
+                                <li><strong>安全删除</strong>：确认重复的文件可直接删除，删除后若分组剩余少于2本会自动清理</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3>🔔 智能通知系统</h3>
+                    <ul>
+                        <li><strong>非打断式提示</strong>：大部分操作完成后会在右下角显示优雅的浮动提示框，1-2秒后自动消失</li>
+                        <li><strong>保留关键确认</strong>：删除图书、跳过图书等重要操作仍会弹出确认对话框，确保安全</li>
+                        <li><strong>即时反馈</strong>：配置保存、分析完成、规则更新等操作都有即时的视觉反馈</li>
+                        <li><strong>流畅体验</strong>：减少75%的打断式对话框，让操作更加流畅自然</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3>⭐ 图书评分系统</h3>
+                    <ul>
+                        <li><strong>五星评分</strong>：在库管理模式下，点击右侧详情页的星标为图书评分（1-5星）</li>
+                        <li><strong>清除评分</strong>：悬停在评分区域，点击出现的禁止图标（Ø）清除评分</li>
+                        <li><strong>搜索筛选</strong>：在搜索框输入 <code>+5</code> 筛选5星，<code>+0</code> 筛选未评分，支持组合如
+                            <code>Python +5</code>
+                        </li>
+                        <li><strong>左侧同步</strong>：评分后左侧列表显示带数字的金色星标</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3>📦 库管理批量操作</h3>
+                    <ul>
+                        <li><strong>批量选择</strong>：勾选左侧列表中的图书或文件夹进行批量选择</li>
+                        <li><strong>批量增强</strong>：一次性为多本图书生成增强简介，实时显示进度</li>
+                        <li><strong>批量转换</strong>：批量转换格式并自动上传云盘（需先配置 Google Drive）</li>
+                        <li><strong>悬停预览</strong>：在批量列表中悬停图书名称，快速查看简介和目录</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3>💡 实用技巧</h3>
+                    <ul>
+                        <li><strong>多级文件夹支持</strong>：源目录可以有多级子文件夹，重命名后会保持原有的文件夹结构</li>
+                        <li><strong>善用跳过功能</strong>：遇到难以分类的图书可以先跳过，集中处理简单的，最后再回来处理复杂的</li>
+                        <li><strong>定期优化规则</strong>：使用一段时间后，可以在 AI 配置中添加针对性的附加规则，提高分类准确性</li>
+                        <li><strong>历史参考功能</strong>：启用历史数据参考后，AI 会越用越聪明，自动学习您的分类习惯</li>
+                        <li><strong>封面查看</strong>：点击封面图片可以放大查看，支持缩放和在新窗口打开</li>
+                        <li><strong>联网搜索</strong>：对于元数据不完整的图书，建议在顶部工具栏启用联网搜索开关，可以获取更准确、更完整的信息。该设置对所有处理模式有效</li>
+                        <li><strong>文件名模板</strong>：可以根据个人习惯自由配置文件名格式，系统会自动处理重复和特殊字符</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3>7. 增强模式 ✨</h3>
+                    <p>开启"已开启增强"开关后，系统将启用高级 AI 分析功能：</p>
+                    <ul>
+                        <li><span class="highlight">增强简介</span>：自动生成包含"图书简介"、"详细要点"和"具体应用"的深度阅读报告。</li>
+                        <li><span class="highlight">并行分析</span>：分析流程与元数据提取并行进行，大幅提升响应速度。</li>
+                        <li><span class="highlight">写入控制</span>：在设置中可独立控制是否将增强简介写入 EPUB/PDF 源文件。</li>
+                        <li><span class="highlight">智能展示</span>：自动折叠冗余信息，仅展示最核心的内容摘要。</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3>8. 常见问题</h3>
+                    <ul>
+                        <li><strong>Q: AI 分类不准确怎么办?</strong><br>A: 可以在 AI 配置中添加附加规则，或启用历史数据参考功能，AI 会根据您的分类习惯改进</li>
+                        <li><strong>Q: 文件名太长怎么办?</strong><br>A: 系统会自动智能截断文件名，确保不超过文件系统限制（255字节）</li>
+                        <li><strong>Q: 支持哪些图书格式?</strong><br>A: 完整支持 EPUB、PDF，基础支持 MOBI、AZW3、TXT、DJVU、CBR/CBZ 等常见电子书格式
+                        </li>
+                        <li><strong>Q: 可以离线使用吗?</strong><br>A: 可以！使用 Ollama 本地模型即可完全离线运行，Gemini 和 DeepSeek 需要网络连接</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3>9. 目录提取功能 ✨</h3>
+                    <p>点击顶部的"识别目录"图标开启，或在图书详情页点击"识别目录"按钮：</p>
+                    <ul>
+                        <li><span class="highlight">智能整理</span>：AI 自动识别并未原始目录添加层级编号（如 1. / 1.1）。</li>
+                        <li><span class="highlight">内容提取</span>：对于没有目录的 PDF/EPUB，AI 可尝试从文档前 10 页内容中识别目录结构。</li>
+                        <li><span class="highlight">配置控制</span>：在"AI 配置" -> "目录规则"中，可启用/禁用整理和提取功能，或修改 AI 提示词。</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3>10. 顶部快捷工具 🛠️</h3>
+                    <p>页面顶部导航栏提供了一组快捷开关，可快速控制核心功能：</p>
+                    <ul>
+                        <li><i class="fa-solid fa-globe"></i> <strong>联网搜索</strong>：一键开启/关闭 AI 联网搜索功能。</li>
+                        <li><i class="fa-solid fa-file-lines"></i> <strong>增强模式</strong>：开启后 AI 将生成增强简介（需消耗更多 Token）。
+                        </li>
+                        <li><i class="fa-solid fa-list-ol"></i> <strong>识别目录</strong>：控制是否自动提取/整理图书目录。</li>
+                        <li><i class="fa-solid fa-magnifying-glass"></i> <strong>内容与搜索</strong>：一键切换内容提取与搜索控制总开关。</li>
+                        <li><i class="fa-solid fa-database"></i> <strong>数据库增强</strong>：切换显示数据源优先级（数据库优先/元数据优先）。</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3>11. 离线模式与自动兜底 (Fallback) 🛡️</h3>
+                    <ul>
+                        <li><span class="highlight">离线模式</span>：在 AI 模型选择 "离线模式"
+                            时，系统将完全停止网络请求，仅使用本地元数据和正则表达式进行快速整理，适合无网络环境。</li>
+                        <li><span class="highlight">自动兜底</span>：当选定的 AI 服务（如 Gemini/DeepSeek）因网络波动、配额耗尽或 API
+                            错误而不可用时，系统会自动降级到 "离线模式" 继续完成任务。</li>
+                        <li><span class="highlight">状态提示</span>：触发自动兜底时，会弹出橙色警告通知，明确告知您当前使用的是本地分析结果。</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3>🔍 图书馆查重</h3>
+                    <ul>
+                        <li><strong>入口</strong>：点击顶部"同步"按钮，选择"图书馆查重"</li>
+                        <li><strong>智能检测</strong>：自动扫描图书库，基于模糊匹配识别疑似重复图书组</li>
+                        <li><strong>信息展示</strong>：每本书显示格式标签、文件大小、路径，以及增强简介/目录图标帮助判断</li>
+                        <li><strong>忽略功能</strong>：对于故意保留的"重复"（如不同格式版本），点击"忽略"移出查重列表</li>
+                        <li><strong>取消忽略</strong>：在"忽略记录"标签页可恢复查重检测</li>
+                        <li><strong>安全删除</strong>：删除需确认，删除后若仅剩 1 本，该分组自动消失</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3>🗄️ 数据库同步</h3>
+                    <ul>
+                        <li><strong>入口</strong>：点击顶部"同步"按钮，选择"数据库同步"</li>
+                        <li><strong>功能</strong>：检测数据库记录与实际文件系统的差异，支持批量更新或删除过期记录</li>
+                        <li><strong>安全机制</strong>：执行前自动备份数据库</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cover Zoom Modal -->
+    <div id="cover-zoom-modal" class="modal hidden">
+        <div class="cover-zoom-content">
+            <div class="zoom-controls">
+                <button class="zoom-btn" onclick="zoomCover(-0.1)" title="缩小">
+                    <i class="fa-solid fa-magnifying-glass-minus"></i>
+                </button>
+                <button class="zoom-btn" onclick="resetZoom()" title="重置">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                </button>
+                <button class="zoom-btn" onclick="zoomCover(0.1)" title="放大">
+                    <i class="fa-solid fa-magnifying-glass-plus"></i>
+                </button>
+                <button class="zoom-btn" onclick="openInNewWindow()" title="新窗口打开">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                </button>
+                <button class="btn-close-zoom" onclick="closeCoverZoom()" title="关闭">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="zoom-image-container" id="zoom-container">
+                <img id="cover-zoom-image" src="" alt="Book Cover">
+            </div>
+        </div>
+    </div>
+
+    <!-- Transfer Status Indicator -->
+    <div id="transfer-status" class="transfer-status hidden">
+        <div class="transfer-content">
+            <div class="spinner-small"></div>
+            <span id="transfer-status-text">正在处理...</span>
+        </div>
+    </div>
+
+    <!-- Add Custom Provider Modal -->
+    <div id="add-provider-modal" class="modal hidden">
+        <div class="modal-content glass-panel" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-plug"></i> 添加自定义 Provider</h3>
+                <button class="btn-close" onclick="closeAddProviderModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Provider 名称 <span class="text-muted">(唯一标识)</span></label>
+                    <input type="text" id="new-provider-name" placeholder="例如: my_openrouter">
+                </div>
+                <div class="form-group">
+                    <label>Provider 类型 <span class="text-muted">(LiteLLM provider)</span></label>
+                    <select id="new-provider-type">
+                        <option value="openrouter">OpenRouter</option>
+                        <option value="groq">Groq</option>
+                        <option value="azure">Azure OpenAI</option>
+                        <option value="anthropic">Anthropic Claude</option>
+                        <option value="openai">OpenAI</option>
+                        <option value="custom">自定义</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>API Key</label>
+                    <input type="password" id="new-provider-key" placeholder="输入 API Key">
+                </div>
+                <div class="form-group">
+                    <label>Base URL <span class="text-muted">(可选)</span></label>
+                    <input type="text" id="new-provider-url" placeholder="例如: https://api.openrouter.ai/v1">
+                </div>
+                <div class="form-group">
+                    <label>Model 名称</label>
+                    <input type="text" id="new-provider-model" placeholder="例如: openrouter/openai/gpt-4o">
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="new-provider-json-mode" checked>
+                        <span>支持 JSON 模式 <span class="text-muted">(response_format)</span></span>
+                    </label>
+                    <p class="help-text">部分模型（如火山引擎）不支持 JSON 模式，请取消勾选</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeAddProviderModal()">取消</button>
+                <button class="btn-primary" onclick="saveNewProvider()"><i class="fa-solid fa-check"></i> 添加</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Records Viewer Modal -->
+    <div id="records-modal" class="modal hidden">
+        <div class="modal-content glass-panel large-modal fixed-footer-modal">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-clock-rotate-left"></i> 操作记录</h3>
+                <button id="close-records" class="btn-close"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body modal-body-fixed">
+                <!-- Tab Navigation + Filters in same row -->
+                <div class="records-header-row">
+                    <div class="settings-tabs">
+                        <button class="tab-btn active" onclick="switchRecordsTab('transfers')">
+                            <i class="fa-solid fa-truck"></i> 转移记录
+                        </button>
+                        <button class="tab-btn" onclick="switchRecordsTab('summaries')">
+                            <i class="fa-solid fa-bookmark"></i> 保存记录
+                        </button>
+                    </div>
+                    <div class="records-filters-inline">
+                        <input type="date" id="records-date-start" title="开始日期">
+                        <span class="date-separator">至</span>
+                        <input type="date" id="records-date-end" title="结束日期">
+                        <input type="text" id="records-search" placeholder="搜索...">
+                        <button class="btn-icon-only has-tooltip" data-tooltip="查询" onclick="loadRecords()">
+                            <i class="fa-solid fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Transfer Records Tab -->
+                <div id="records-tab-transfers" class="tab-content active">
+                    <div class="scrollable-content">
+                        <div id="transfers-loading" class="loading-placeholder hidden">
+                            <div class="spinner"></div> 加载中...
+                        </div>
+                        <table class="records-table" id="transfers-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:40px">#</th>
+                                    <th>书名</th>
+                                    <th>作者</th>
+                                    <th>目标目录</th>
+                                    <th style="width:140px">时间</th>
+                                    <th style="width:60px">详情</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transfers-tbody">
+                                <!-- Records populated by JS -->
+                            </tbody>
+                        </table>
+                        <div id="transfers-empty" class="empty-state hidden">
+                            <i class="fa-solid fa-inbox"></i>
+                            <p>暂无转移记录</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Summaries Tab -->
+                <div id="records-tab-summaries" class="tab-content">
+                    <div class="scrollable-content">
+                        <div id="summaries-loading" class="loading-placeholder hidden">
+                            <div class="spinner"></div> 加载中...
+                        </div>
+                        <table class="records-table" id="summaries-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:40px">#</th>
+                                    <th>书名</th>
+                                    <th>作者</th>
+                                    <th>分类</th>
+                                    <th style="width:140px">保存时间</th>
+                                    <th style="width:60px">简介</th>
+                                </tr>
+                            </thead>
+                            <tbody id="summaries-tbody">
+                                <!-- Records populated by JS -->
+                            </tbody>
+                        </table>
+                        <div id="summaries-empty" class="empty-state hidden">
+                            <i class="fa-solid fa-inbox"></i>
+                            <p>暂无保存记录</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <span id="records-count" class="text-muted">共 0 条记录</span>
+                <div class="pagination-controls">
+                    <button class="btn-icon-only" id="page-prev" onclick="changePage(-1)" disabled>
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <span id="page-info">第 1 页</span>
+                    <button class="btn-icon-only" id="page-next" onclick="changePage(1)">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                </div>
+                <button class="btn-secondary" onclick="closeRecordsModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Library Batch Modal -->
+    <div id="library-batch-modal" class="modal hidden">
+        <div class="modal-content glass-panel large-modal fixed-footer-modal">
+            <div class="modal-header batch-header">
+                <div class="header-left">
+                    <h3 id="lib-batch-title"><i class="fa-solid fa-wand-magic-sparkles"></i> 批量处理</h3>
+                    <div class="batch-progress-bar inline-progress">
+                        <div class="progress-track">
+                            <div id="lib-batch-progress" class="progress-fill"></div>
+                        </div>
+                        <span id="lib-batch-status" class="progress-text">准备中...</span>
+                    </div>
+                </div>
+                <button class="btn-close" onclick="closeLibraryBatchModal()">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="modal-body modal-body-fixed">
+                <div class="scrollable-content">
+                    <table class="records-table batch-table">
+                        <thead>
+                            <tr>
+                                <th style="width:50%">书名</th>
+                                <th style="width:40px">★</th>
+                                <th style="width:50px">简介</th>
+                                <th style="width:50px">目录</th>
+                                <th id="col-enhance" class="hidden" style="width:60px">增强</th>
+                                <th id="col-convert" class="hidden" style="width:60px">转换</th>
+                                <th id="col-upload" class="hidden" style="width:60px">上传</th>
+                                <th style="width:70px">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lib-batch-list"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="lib-batch-stop" class="btn-secondary hidden" onclick="stopLibraryBatch()">
+                    <i class="fa-solid fa-stop"></i> 停止
+                </button>
+                <button id="lib-batch-start" class="btn-primary" onclick="startLibraryBatch()">
+                    <i class="fa-solid fa-play"></i> 开始处理
+                </button>
+                <button class="btn-secondary" onclick="closeLibraryBatchModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Book Preview Modal -->
+    <div id="book-preview-modal" class="modal hidden">
+        <div class="modal-content glass-panel large-modal fixed-footer-modal book-preview-modal-content">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-eye"></i> <span id="book-preview-title">预览</span></h3>
+                <div class="book-preview-header-actions">
+                    <button class="btn-secondary btn-sm icon-btn" id="toggle-book-preview-fullscreen" title="全屏">
+                        <i class="fa-solid fa-expand"></i>
+                    </button>
+                    <button class="btn-close" id="close-book-preview">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-body modal-body-fixed book-preview-body">
+                <div id="book-preview-content" class="book-preview-content">
+                    <div class="preview-loading">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <span id="book-preview-status" class="text-muted text-sm"></span>
+                <button class="btn-secondary" onclick="closeBookPreview()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS Modules (load in dependency order) -->
+    <script src="/static/js/modules/state.js?v=3"></script>
+    <script src="/static/js/modules/ui.js?v=6"></script>
+    <script src="/static/js/modules/api.js?v=3"></script>
+    <script src="/static/js/modules/batch.js"></script>
+    <!-- libraryBatch 子模块 -->
+    <script src="/static/js/modules/libraryBatch/selection.js"></script>
+    <script src="/static/js/modules/libraryBatch/hover-popup.js"></script>
+    <script src="/static/js/modules/libraryBatch/modal.js"></script>
+    <script src="/static/js/modules/libraryBatch/process.js"></script>
+    <script src="/static/js/modules/libraryBatch.js?v=4"></script>
+    <script src="/static/js/modules/zoom.js"></script>
+    <script src="/static/js/modules/preview.js?v=3"></script>
+    <!-- settings 子模块 -->
+    <script src="/static/js/modules/settings/model-config.js"></script>
+    <script src="/static/js/modules/settings/custom-provider.js"></script>
+    <script src="/static/js/modules/settings/google-drive.js"></script>
+    <script src="/static/js/modules/settings/cloud-sync.js?v=3"></script>
+    <script src="/static/js/modules/settings.js?v=5"></script>
+    <script src="/static/js/modules/records.js"></script>
+    <script src="/static/js/modules/sync.js?v=3"></script>
+    <!-- AI Config and Main App -->
+    <script src="/static/ai_config.js"></script>
+    <script src="/static/app.js?v=6"></script>
+    <script src="/static/i18n.js?v=3"></script>
+</body>
+
+</html>

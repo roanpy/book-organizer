@@ -1,0 +1,182 @@
+# ============================================
+# User Configuration & History (Sensitive Data)
+# ============================================
+book_organizer_config.json
+book_organizer_history.json
+data/*.json
+data/*.db
+book_organizer.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+*.sqlite-wal
+*.sqlite-shm
+*.log
+.agent/
+
+# Google Drive Credentials (OAuth & Client Secrets)
+**/client_secret*.json
+**/google_credentials.json
+**/google_drive_token.json
+**/.book_organizer/
+
+# ============================================
+# Python
+# ============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Distribution / Packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+# 注意: BookOrganizer.spec 需要版本控制，不忽略
+# *.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# ============================================
+# IDEs & Editors
+# ============================================
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# ============================================
+# Operating System Files
+# ============================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# ============================================
+# Build Artifacts & Temporary Files
+# ============================================
+dist/
+build/
+*.app/
+*.exe
+*.dmg
+*.pkg
+releases/*.zip
+temp/
+tmp/
+*.tmp
+
+# ============================================
+# Test Data & Local Development
+# ============================================
+test_books/
+sample_books/
+*.epub
+*.mobi
+*.azw3
+*.pdf
+
+# Local development files
+.env
+.env.local
+.env.*.local
+local_config.json
+
+# ============================================
+# Node.js (if using for web interface)
+# ============================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# ============================================
+# Misc
+# ============================================
+*.bak
+*.backup
+*.old
+*.orig
