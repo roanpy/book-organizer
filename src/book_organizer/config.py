@@ -11,7 +11,7 @@
 
 import json
 import os
-import shutil
+import stat
 import tempfile
 import threading
 from copy import deepcopy
@@ -67,8 +67,17 @@ SECRET_FIELD_KEYS = {
 
 
 def _read_json_file(path):
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    try:
+        file_stat = os.fstat(fd)
+        if not stat.S_ISREG(file_stat.st_mode) or file_stat.st_nlink != 1:
+            raise ValueError("unsafe configuration file")
+        with os.fdopen(fd, "r", encoding="utf-8") as f:
+            fd = -1
+            return json.load(f)
+    finally:
+        if fd >= 0:
+            os.close(fd)
 
 
 def _write_json_file(path, data):
@@ -77,6 +86,10 @@ def _write_json_file(path, data):
     with _config_write_lock:
         temp_path = ""
         try:
+            if os.path.lexists(path):
+                file_stat = os.lstat(path)
+                if not stat.S_ISREG(file_stat.st_mode) or file_stat.st_nlink != 1:
+                    raise ValueError("unsafe configuration file")
             with tempfile.NamedTemporaryFile(
                 "w", encoding="utf-8", dir=directory, delete=False
             ) as f:
@@ -92,7 +105,27 @@ def _write_json_file(path, data):
 
 def _resolve_sync_path(config, sync_path=None):
     path = sync_path or config.get("sync", {}).get("path")
-    return os.path.expanduser(path) if path else ""
+    if not path:
+        return ""
+    return os.path.realpath(os.path.abspath(os.path.expanduser(path)))
+
+
+def resolve_regular_file_path(directory, filename):
+    """Return one regular-file path contained by an existing directory."""
+    root = _resolve_sync_path({}, directory)
+    if not root or not os.path.isdir(root):
+        raise ValueError("invalid directory")
+    if not filename or filename != os.path.basename(filename):
+        raise ValueError("invalid filename")
+
+    candidate = os.path.join(root, filename)
+    if os.path.lexists(candidate):
+        file_stat = os.lstat(candidate)
+        if not stat.S_ISREG(file_stat.st_mode) or file_stat.st_nlink != 1:
+            raise ValueError("unsafe file")
+    if os.path.commonpath([os.path.realpath(candidate), root]) != root:
+        raise ValueError("file escapes selected directory")
+    return candidate
 
 
 def _sync_sensitive_credentials_enabled(config):
@@ -174,14 +207,14 @@ def build_synced_secrets(config):
 
 
 def _merge_synced_secrets(config, sync_path):
-    secrets_file = os.path.join(sync_path, "secrets.json")
+    secrets_file = resolve_regular_file_path(sync_path, "secrets.json")
     if not os.path.exists(secrets_file):
         return config
 
     try:
         cloud_secrets = _read_json_file(secrets_file)
     except Exception as e:
-        print(f"Failed to load cloud secrets: {e}")
+        print(f"Failed to load cloud secrets ({type(e).__name__})")
         return config
 
     providers = cloud_secrets.get("providers", {})
@@ -236,7 +269,13 @@ def merge_synced_config_files(config, sync_path=None, include_sensitive=None):
     if not path or not os.path.exists(path):
         return config
 
-    prefs_file = os.path.join(path, "preferences.json")
+    try:
+        prefs_file = resolve_regular_file_path(path, "preferences.json")
+        ai_config_file = resolve_regular_file_path(path, "ai_config.json")
+    except ValueError:
+        print("Skipped unsafe synchronized configuration files")
+        return config
+
     if os.path.exists(prefs_file):
         try:
             cloud_prefs = _read_json_file(prefs_file)
@@ -255,16 +294,15 @@ def merge_synced_config_files(config, sync_path=None, include_sensitive=None):
             if isinstance(config.get("beta_features"), dict):
                 config["beta_features"].pop("google_drive", None)
         except Exception as e:
-            print(f"Failed to load cloud preferences: {e}")
+            print(f"Failed to load cloud preferences ({type(e).__name__})")
 
-    ai_config_file = os.path.join(path, "ai_config.json")
     if os.path.exists(ai_config_file):
         try:
             cloud_ai_config = _read_json_file(ai_config_file)
             if isinstance(cloud_ai_config, dict):
                 config["ai_config"] = cloud_ai_config
         except Exception as e:
-            print(f"Failed to load cloud AI config: {e}")
+            print(f"Failed to load cloud AI config ({type(e).__name__})")
 
     should_include_sensitive = (
         _sync_sensitive_credentials_enabled(config)
@@ -272,7 +310,10 @@ def merge_synced_config_files(config, sync_path=None, include_sensitive=None):
         else bool(include_sensitive)
     )
     if should_include_sensitive:
-        config = _merge_synced_secrets(config, path)
+        try:
+            config = _merge_synced_secrets(config, path)
+        except ValueError:
+            print("Skipped unsafe synchronized credential file")
 
     return config
 
@@ -283,16 +324,16 @@ def save_synced_config_files(config, sync_path=None):
     if not path or not os.path.exists(path):
         return False
 
-    prefs_file = os.path.join(path, "preferences.json")
-    _write_json_file(prefs_file, build_synced_preferences(config))
-
+    prefs_file = resolve_regular_file_path(path, "preferences.json")
     ai_config = config.get("ai_config")
+    ai_config_file = resolve_regular_file_path(path, "ai_config.json")
+    secrets_file = resolve_regular_file_path(path, "secrets.json")
+
+    _write_json_file(prefs_file, build_synced_preferences(config))
     if ai_config:
-        ai_config_file = os.path.join(path, "ai_config.json")
         _write_json_file(ai_config_file, ai_config)
 
     if _sync_sensitive_credentials_enabled(config):
-        secrets_file = os.path.join(path, "secrets.json")
         _write_json_file(secrets_file, build_synced_secrets(config))
 
     return True
@@ -302,8 +343,8 @@ def get_synced_config_status(sync_path):
     """Return existence, size, and latest mtime for synced config files."""
     path = os.path.expanduser(sync_path) if sync_path else ""
     files = [
-        os.path.join(path, "preferences.json"),
-        os.path.join(path, "ai_config.json"),
+        resolve_regular_file_path(path, "preferences.json"),
+        resolve_regular_file_path(path, "ai_config.json"),
     ]
     existing_files = [file_path for file_path in files if os.path.exists(file_path)]
     if not existing_files:
@@ -350,10 +391,9 @@ def load_config(merge_cloud=True):
     # 1. 加载本地配置 (Base)
     if os.path.exists(CONFIG_FILE):
         try:
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                config = json.load(f)
+            config = _read_json_file(CONFIG_FILE)
         except Exception as e:
-            print(f"Warning: Failed to load config file: {e}")
+            print(f"Warning: Failed to load config file ({type(e).__name__})")
             pass
 
     # 2. 检查同步设置并加载云端偏好/AI 配置
@@ -430,14 +470,17 @@ def save_config(config, sync_cloud=True):
                 save_synced_config_files(config, sync_path)
 
                 # 同步去重忽略列表 (Deduplication Ignores)
-                local_ignores = os.path.join(APP_DIR, "dedup_ignores.json")
+                local_ignores = resolve_regular_file_path(
+                    APP_DIR, "dedup_ignores.json"
+                )
                 if os.path.exists(local_ignores):
-                    shutil.copy2(
-                        local_ignores, os.path.join(sync_path, "dedup_ignores.json")
+                    _write_json_file(
+                        resolve_regular_file_path(sync_path, "dedup_ignores.json"),
+                        _read_json_file(local_ignores),
                     )
 
             except Exception as e:
-                print(f"Failed to save cloud preferences: {e}")
+                print(f"Failed to save cloud preferences ({type(e).__name__})")
 
 
 # ==============================================================================
@@ -517,30 +560,11 @@ def get_default_ai_config():
 def load_ai_config():
     """加载 AI 配置.
 
-    支持 iCloud 同步: 优先读取同步目录下的 ai_config.json
+    云端偏好已由 load_config() 统一合并。
     """
     config = load_config()
     default_ai_config = get_default_ai_config()
-    user_ai_config = {}
-
-    # 1. 尝试从同步目录加载
-    sync_config = config.get("sync", {})
-    loaded_from_sync = False
-
-    if sync_config.get("enabled") and sync_config.get("path"):
-        sync_path = os.path.expanduser(sync_config["path"])  # 支持 ~ 路径
-        sync_file = os.path.join(sync_path, "ai_config.json")
-        if os.path.exists(sync_file):
-            try:
-                with open(sync_file, "r", encoding="utf-8") as f:
-                    user_ai_config = json.load(f)
-                    loaded_from_sync = True
-            except Exception:
-                pass
-
-    # 2. 如果同步失败或未开启，回退到本地配置
-    if not loaded_from_sync:
-        user_ai_config = config.get("ai_config", {})
+    user_ai_config = config.get("ai_config", {})
 
     if not user_ai_config:
         return default_ai_config
@@ -560,25 +584,11 @@ def load_ai_config():
 def save_ai_config(ai_config):
     """保存 AI 配置.
 
-    支持 iCloud 同步: 优先保存到同步目录下的 ai_config.json, 同时也更新本地 config 以作备份
+    save_config() 负责本地持久化和已启用的云端偏好同步。
     """
     config = load_config()
-
-    # 1. 更新本地 config 对象并保存（备份）
     config["ai_config"] = ai_config
     save_config(config)
-
-    # 2. 如果开启同步，保存到云端文件
-    sync_config = config.get("sync", {})
-    if sync_config.get("enabled") and sync_config.get("path"):
-        sync_path = os.path.expanduser(sync_config["path"])  # 支持 ~ 路径
-        if os.path.exists(sync_path):
-            try:
-                sync_file = os.path.join(sync_path, "ai_config.json")
-                with open(sync_file, "w", encoding="utf-8") as f:
-                    json.dump(ai_config, f, indent=4, ensure_ascii=False)
-            except Exception as e:
-                print(f"Failed to save cloud AI config: {e}")
 
 
 def get_content_search_config() -> dict:
@@ -656,19 +666,18 @@ def load_history():
         config = load_config()
         sync_config = config.get("sync", {})
         if sync_config.get("enabled") and sync_config.get("path"):
-            sync_path = os.path.expanduser(sync_config["path"])  # 支持 ~ 路径
-            sync_file = os.path.join(sync_path, "history.json")
+            sync_file = resolve_regular_file_path(
+                sync_config["path"], "history.json"
+            )
             if os.path.exists(sync_file):
-                with open(sync_file, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                return _read_json_file(sync_file)
     except Exception:
         pass
 
     # 2. 回退到本地
     if os.path.exists(HISTORY_FILE):
         try:
-            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+            return _read_json_file(HISTORY_FILE)
         except Exception:
             return {}
     return {}
@@ -682,21 +691,19 @@ def save_history(history):
     2. 如果开启同步，也保存到云端 history.json
     """
     # 1. 保存本地
-    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(history, f, indent=4, ensure_ascii=False)
+    _write_json_file(HISTORY_FILE, history)
 
     # 2. 保存云端
     try:
         config = load_config()
         sync_config = config.get("sync", {})
         if sync_config.get("enabled") and sync_config.get("path"):
-            sync_path = os.path.expanduser(sync_config["path"])  # 支持 ~ 路径
-            if os.path.exists(sync_path):
-                sync_file = os.path.join(sync_path, "history.json")
-                with open(sync_file, "w", encoding="utf-8") as f:
-                    json.dump(history, f, indent=4, ensure_ascii=False)
+            sync_file = resolve_regular_file_path(
+                sync_config["path"], "history.json"
+            )
+            _write_json_file(sync_file, history)
     except Exception as e:
-        print(f"Failed to save cloud history: {e}")
+        print(f"Failed to save cloud history ({type(e).__name__})")
 
 
 def save_history_item(filename, status, details=None):

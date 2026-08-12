@@ -411,7 +411,7 @@ def _load_learned_rules_sync() -> None:
             _rules_initialized = True
             _rules_loading = False
     except Exception as e:
-        print(f"[LocalRules] 加载学习规则失败: {e}")
+        print(f"[LocalRules] 加载学习规则失败 ({type(e).__name__})")
         with _rules_lock:
             _learned_rules_cache = {}
             _rules_initialized = True

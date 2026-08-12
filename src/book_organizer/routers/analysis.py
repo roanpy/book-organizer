@@ -153,9 +153,11 @@ def identify_metadata_endpoint(request: IdentifyMetadataRequest) -> Dict[str, An
 
         if "error" in result:
             # Check for file not found error specifically
-            if "文件不存在" in result["error"]:
-                raise HTTPException(status_code=404, detail=result["error"])
-            raise HTTPException(status_code=500, detail=result["error"])
+            if "文件不存在" in str(result["error"]):
+                raise HTTPException(status_code=404, detail="文件不存在")
+            raise HTTPException(
+                status_code=500, detail=format_ai_error(result["error"])
+            )
 
         return result
     except HTTPException:
@@ -195,9 +197,7 @@ def _run_analysis_in_process(
             try:
                 # 如果尚未确认元数据且未提供完整的用户元数据，尝试 AI 识别
                 if not request_metadata_identified:
-                    print(
-                        f"  ✨ Triggering Explicit Metadata Identification for: {request_filename}"
-                    )
+                    print("  ✨ Triggering explicit metadata identification")
 
                     id_result = identify_book_metadata(
                         request_engine,
@@ -209,14 +209,10 @@ def _run_analysis_in_process(
 
                     if "error" in id_result:
                         # 记录错误但不完全中断，尝试继续后续步骤（可能导致分类不准）
-                        print(
-                            f"  ⚠️ Metadata identification failed: {id_result['error']}"
-                        )
+                        print("  ⚠️ Metadata identification failed")
                         # 保持使用 fallback metadata
                     else:
-                        print(
-                            f"  ✅ Metadata identified successfully: {id_result.get('title')}"
-                        )
+                        print("  ✅ Metadata identified successfully")
                         final_metadata = id_result
 
                 # 准备上下文信息
@@ -227,7 +223,7 @@ def _run_analysis_in_process(
 - 作者: {final_metadata.get("author", "未知")}
 - 出版社: {final_metadata.get("publisher", "未知")}
 """
-                print(f"  ✨ Using Categorization Analysis for: {request_filename}")
+                print("  ✨ Using categorization analysis")
                 ai_result = get_ai_analysis(
                     request_engine,
                     config,
@@ -243,14 +239,14 @@ def _run_analysis_in_process(
                 ai_result["metadata"] = final_metadata
 
             except Exception as e:
-                print(f"  ❌ AI Analysis Failed: {e}")
+                print(f"  ❌ AI analysis failed ({type(e).__name__})")
                 ai_analysis_failed = True
-                ai_failure_reason = str(e)
+                ai_failure_reason = format_ai_error(e)
                 use_ai = False  # 降级到离线逻辑
 
         # 离线逻辑 / 兜底逻辑
         if not use_ai:
-            print(f"  🛠️ Using Offline/Fallback logic for: {request_filename}")
+            print("  🛠️ Using offline/fallback logic")
             # 尝试从数据库恢复已有的增强简介 (防止覆盖)
             existing_summary = ""
             try:
@@ -269,7 +265,9 @@ def _run_analysis_in_process(
                         data = json.loads(row[0])
                         existing_summary = data.get("summary", "")
             except Exception as e:
-                logger.warning(f"  ⚠️ Failed to recover existing summary: {e}")
+                logger.warning(
+                    "Failed to recover existing summary (%s)", type(e).__name__
+                )
 
             # 优先使用数据库中的增强简介，其次是元数据中的描述
             summary_to_use = (
@@ -324,7 +322,9 @@ def _run_analysis_in_process(
                         heuristic_matches.append(rel_dir)
 
         except Exception as sim_e:
-            print(f"  ⚠️ Failed to find similar suggestions: {sim_e}")
+            print(
+                f"  ⚠️ Failed to find similar suggestions ({type(sim_e).__name__})"
+            )
 
         raw_suggestions = ai_result.get("suggestions", [])
         validated_ai_suggestions = [s for s in raw_suggestions if s in categories]
@@ -416,7 +416,12 @@ async def analyze_book(request: AnalyzeRequest) -> Dict[str, Any]:
         _cleanup_analysis_resources(process, result_queue)
 
     if "error" in result:
-        raise HTTPException(status_code=500, detail=result["error"])
+        error = str(result["error"])
+        if error == "Analysis cancelled":
+            raise HTTPException(status_code=409, detail="分析已取消")
+        if error == "Analysis timeout":
+            raise HTTPException(status_code=504, detail="分析超时，请稍后重试")
+        raise HTTPException(status_code=500, detail=format_ai_error(error))
 
     return result
 
@@ -436,7 +441,9 @@ def _get_existing_summary(filename: str) -> Optional[str]:
                 metadata = extract_metadata(file_path) or {}
                 embedded_summary = extract_embedded_enhanced_summary(metadata)
             except Exception as e:
-                logger.warning(f"Error reading embedded summary: {e}")
+                logger.warning(
+                    "Error reading embedded summary (%s)", type(e).__name__
+                )
 
         if (
             file_path
@@ -460,7 +467,7 @@ def _get_existing_summary(filename: str) -> Optional[str]:
             config.get("beta_features", {}).get("data_priority", "database"),
         )
     except Exception as e:
-        logger.warning(f"Error fetching existing summary: {e}")
+        logger.warning("Error fetching existing summary (%s)", type(e).__name__)
     return None
 
 
@@ -481,9 +488,7 @@ def generate_enhanced_summary_endpoint(request: EnhancedSummaryRequest):
         file_path = resolve_file_path(request.filename, config)
 
         if not file_path:
-            raise HTTPException(
-                status_code=404, detail=f"File not found: {request.filename}"
-            )
+            raise HTTPException(status_code=404, detail="文件不存在")
 
         metadata = extract_metadata(file_path)
 
@@ -500,7 +505,7 @@ def generate_enhanced_summary_endpoint(request: EnhancedSummaryRequest):
         )
 
         if "error" in result:
-            raise HTTPException(status_code=500, detail=result["error"])
+            raise RuntimeError(str(result["error"]))
 
         return result
 
@@ -542,7 +547,9 @@ def batch_enhance_single_endpoint(request: BatchEnhanceSingleRequest):
         )
 
         if "error" in result:
-            raise HTTPException(status_code=500, detail=result["error"])
+            raise HTTPException(
+                status_code=500, detail=format_ai_error(result["error"])
+            )
 
         has_toc = False
         toc_entry_count = 0
@@ -551,11 +558,9 @@ def batch_enhance_single_endpoint(request: BatchEnhanceSingleRequest):
             if toc_result.get("entry_count", 0) > 0:
                 has_toc = True
                 toc_entry_count = toc_result.get("entry_count", 0)
-                print(
-                    f"  📚 已提取并保存目录 ({toc_entry_count} 条): {os.path.basename(file_path)}"
-                )
+                print(f"  📚 已提取并保存目录 ({toc_entry_count} 条)")
         except Exception as e:
-            logger.warning(f"  ⚠️ 目录提取失败: {e}")
+            logger.warning("目录提取失败 (%s)", type(e).__name__)
 
         result["has_toc"] = has_toc
         result["toc_entry_count"] = toc_entry_count
@@ -613,7 +618,9 @@ def batch_organize_single_endpoint(request: BatchOrganizeSingleRequest):
         )
 
         if "error" in result:
-            raise HTTPException(status_code=500, detail=result["error"])
+            raise HTTPException(
+                status_code=500, detail=format_ai_error(result["error"])
+            )
 
         has_toc = False
         toc_entry_count = 0
@@ -623,7 +630,7 @@ def batch_organize_single_endpoint(request: BatchOrganizeSingleRequest):
                 has_toc = True
                 toc_entry_count = toc_result.get("entry_count", 0)
         except Exception as e:
-            print(f"  ⚠️ 目录提取检查失败: {e}")
+            print(f"  ⚠️ 目录提取检查失败 ({type(e).__name__})")
 
         result["has_toc"] = has_toc
         result["toc_entry_count"] = toc_entry_count
@@ -718,7 +725,7 @@ def ai_extract_toc_endpoint(request: AIExtractTOCRequest) -> Dict[str, Any]:
                     )["message"]["content"].strip()
                 return ""
             except Exception as e:
-                print(f"AI call error: {e}")
+                print(f"AI call failed ({type(e).__name__})")
                 return ""
 
         raw_result = extract_toc(file_path)
@@ -822,9 +829,7 @@ def analyze_full(request: AnalyzeRequest):
     categories = get_target_categories(target_dir)
 
     if not request.metadata_identified:
-        print(
-            f"  ✨ Using Unified Analysis (Metadata + Category) for: {request.filename}"
-        )
+        print("  ✨ Using unified analysis (metadata + category)")
         ai_result = get_unified_analysis(
             request.engine,
             config,
@@ -837,9 +842,7 @@ def analyze_full(request: AnalyzeRequest):
             metadata_identified=False,
         )
     else:
-        print(
-            f"  ✨ Using Categorization Analysis (Metadata Confirmed) for: {request.filename}"
-        )
+        print("  ✨ Using categorization analysis (metadata confirmed)")
         enhanced_filename_info = f"""
 文件名: {request.filename}
 识别的元数据 (已确认):
@@ -856,7 +859,9 @@ def analyze_full(request: AnalyzeRequest):
         )
 
     if "error" in ai_result:
-        raise HTTPException(status_code=500, detail=ai_result["error"])
+        raise HTTPException(
+            status_code=500, detail=format_ai_error(ai_result["error"])
+        )
 
     raw_suggestions = ai_result.get("suggestions", [])
     validated_ai_suggestions = [s for s in raw_suggestions if s in categories]

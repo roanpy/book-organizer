@@ -15,6 +15,8 @@
 - Validated analysis, cover, PDF conversion, and database-repair paths at their shared boundaries.
 - Prevented synchronization requests from rewriting records outside the configured library or deleting the newest duplicate.
 - Removed interpolated inline frontend handlers and kept provider errors and stack traces out of API responses.
+- Rejected linked or multiply-linked synchronization files before database, preference, history, and ignore-list writes.
+- Reduced local logs to operation results and exception types so book paths and provider details are not retained.
 
 ## 0.8.3
 

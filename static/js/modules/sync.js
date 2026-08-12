@@ -511,7 +511,7 @@ async function executeSync() {
         if (data.success) {
             showState('sync', 'success');
             document.getElementById('sync-result-msg').innerText = data.message;
-            if (data.backup_path) document.getElementById('sync-backup-path').innerText = "已备份至: " + data.backup_path;
+            if (data.backup_created) document.getElementById('sync-backup-path').innerText = "已创建本地滚动备份";
         } else {
             showSyncError('执行失败: ' + (data.detail || data.error || '未知错误'));
             btn.disabled = false;

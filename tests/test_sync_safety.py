@@ -1,3 +1,5 @@
+import os
+import sqlite3
 from types import SimpleNamespace
 
 from book_organizer import library_path_repair, sync_manager
@@ -90,7 +92,7 @@ def test_sync_execute_rejects_unmanaged_update_path(monkeypatch, tmp_path):
         record_id, original_path = conn.execute(
             "SELECT id, file_path FROM enhanced_summaries"
         ).fetchone()
-    monkeypatch.setattr(manager, "backup_db", lambda: None)
+    monkeypatch.setattr(manager, "backup_db", lambda: "backup.db")
 
     result = manager.execute(
         [
@@ -117,7 +119,7 @@ def test_sync_execute_rejects_deleting_unique_record(monkeypatch, tmp_path):
     db.save_summary(str(book), {"summary": "summary"})
     with db._get_conn() as conn:
         record_id = conn.execute("SELECT id FROM enhanced_summaries").fetchone()[0]
-    monkeypatch.setattr(manager, "backup_db", lambda: None)
+    monkeypatch.setattr(manager, "backup_db", lambda: "backup.db")
 
     result = manager.execute(
         [{"type": "DELETE_DUPLICATE", "record_id": record_id}]
@@ -149,7 +151,7 @@ def test_sync_execute_preserves_newest_duplicate(monkeypatch, tmp_path):
         newest_id = conn.execute(
             "SELECT id FROM enhanced_summaries ORDER BY updated_at DESC LIMIT 1"
         ).fetchone()[0]
-    monkeypatch.setattr(manager, "backup_db", lambda: None)
+    monkeypatch.setattr(manager, "backup_db", lambda: "backup.db")
 
     result = manager.execute(
         [{"type": "DELETE_DUPLICATE", "record_id": newest_id}]
@@ -160,3 +162,30 @@ def test_sync_execute_preserves_newest_duplicate(monkeypatch, tmp_path):
         assert conn.execute(
             "SELECT COUNT(*) FROM enhanced_summaries WHERE id=?", (newest_id,)
         ).fetchone()[0] == 1
+
+
+def test_sync_execute_stops_when_backup_fails(monkeypatch, tmp_path):
+    manager, target, db = _manager(monkeypatch, tmp_path)
+    book = target / "book.epub"
+    book.write_text("book", encoding="utf-8")
+    db.save_summary(str(book), {"summary": "summary"})
+    monkeypatch.setattr(manager, "backup_db", lambda: None)
+
+    result = manager.execute([{"type": "DELETE_DUPLICATE", "record_id": 1}])
+
+    assert result == {"success": False, "message": "无法创建安全备份，已取消处理"}
+    with db._get_conn() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM enhanced_summaries").fetchone()[0] == 1
+
+
+def test_sync_backup_creates_valid_rolling_database(monkeypatch, tmp_path):
+    manager, target, db = _manager(monkeypatch, tmp_path)
+    book = target / "book.epub"
+    book.write_text("book", encoding="utf-8")
+    db.save_summary(str(book), {"summary": "summary"})
+
+    backup = manager.backup_db()
+
+    assert backup and os.path.exists(backup)
+    with sqlite3.connect(backup) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM enhanced_summaries").fetchone()[0] == 1

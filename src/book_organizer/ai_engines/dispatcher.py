@@ -126,7 +126,9 @@ def _call_ai_engine(
         return _call_via_native_sdk(engine_choice, engine_config, prompt, json_mode)
 
     except Exception as e:
-        logger.exception("AI call failed for provider %s", engine_choice)
+        logger.error(
+            "AI call failed for provider %s (%s)", engine_choice, type(e).__name__
+        )
         return {"error": format_ai_error(e)}
 
 
@@ -364,5 +366,7 @@ def dispatch_ai_request(
             return _call_ai_engine(engine_choice, config, prompt, json_mode=json_mode)
 
     except Exception as e:
-        logger.exception("AI request failed for provider %s", engine_choice)
+        logger.error(
+            "AI request failed for provider %s (%s)", engine_choice, type(e).__name__
+        )
         return {"error": format_ai_error(e)}

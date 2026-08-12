@@ -1,9 +1,9 @@
 import copy
 import datetime
-import json
 import os
 import shutil
 import socket
+import tempfile
 from typing import Any, Dict
 
 from fastapi import APIRouter, Body, HTTPException
@@ -15,11 +15,14 @@ from book_organizer.ai_engines.dispatcher import (
 )
 from book_organizer.config import (
     CONFIG_FILE,
+    _read_json_file,
+    _write_json_file,
     get_default_ai_config,
     get_synced_config_status,
     load_ai_config,
     load_config,
     merge_synced_config_files,
+    resolve_regular_file_path,
     save_ai_config,
     save_config,
 )
@@ -64,6 +67,57 @@ DB_FULL_CACHE_FINGERPRINT_MAX_BYTES = (
     db_fingerprint.DB_FULL_CACHE_FINGERPRINT_MAX_BYTES
 )
 SECRET_PROVIDER_KEYS = ("gemini", "deepseek", "volcengine")
+
+
+def _preflight_sync_directory(path: str) -> tuple[str, str]:
+    """Validate every fixed file that synchronization may read, replace, or remove."""
+    cloud_db_path = resolve_regular_file_path(path, UNIFIED_DB_NAME)
+    for suffix in ("-wal", "-shm", ".backup", ".bak", ".bak_sync"):
+        resolve_regular_file_path(path, UNIFIED_DB_NAME + suffix)
+    fixed_files = (
+        "preferences.json",
+        "ai_config.json",
+        "secrets.json",
+        "history.json",
+        "dedup_ignores.json",
+        "sync_meta.json",
+    )
+    resolved = {
+        filename: resolve_regular_file_path(path, filename)
+        for filename in fixed_files
+    }
+    get_synced_config_status(path)
+    return cloud_db_path, resolved["sync_meta.json"]
+
+
+def _copy_database_file(source: str, destination: str) -> None:
+    """Atomically replace a validated database destination."""
+    destination = resolve_regular_file_path(
+        os.path.dirname(destination), os.path.basename(destination)
+    )
+    if os.path.realpath(source) == os.path.realpath(destination):
+        return
+    fd, temp_path = tempfile.mkstemp(
+        prefix=".book-organizer-db-", dir=os.path.dirname(destination)
+    )
+    os.close(fd)
+    try:
+        shutil.copy2(source, temp_path)
+        os.replace(temp_path, destination)
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+
+def _replace_database_file(
+    source: str, destination: str, *, close_local_connection: bool = False
+) -> None:
+    """Back up a valid destination, close local handles, then replace it."""
+    if _valid_database(destination):
+        _backup_database(destination)
+    if close_local_connection:
+        reset_db_instances()
+    _copy_database_file(source, destination)
 
 
 def _compare_database_files(local_path: str, cloud_path: str) -> Dict[str, Any]:
@@ -180,8 +234,10 @@ def _saved_custom_provider(provider: str) -> Dict[str, Any]:
 
 def _cleanup_sqlite_sidecars(db_path: str) -> None:
     """Remove stale SQLite sidecars when there is no pending WAL data."""
-    wal_path = db_path + "-wal"
-    shm_path = db_path + "-shm"
+    directory = os.path.dirname(db_path)
+    filename = os.path.basename(db_path)
+    wal_path = resolve_regular_file_path(directory, filename + "-wal")
+    shm_path = resolve_regular_file_path(directory, filename + "-shm")
     if os.path.exists(wal_path) and os.path.getsize(wal_path) == 0:
         try:
             os.remove(wal_path)
@@ -211,7 +267,7 @@ def _checkpoint_database() -> None:
                 conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
             print("[Sync Check] Database checkpoint executed successfully.")
     except Exception as e:
-        print(f"[Sync Check] Warning: Database checkpoint failed: {e}")
+        print(f"[Sync Check] Database checkpoint failed ({type(e).__name__})")
 
 
 def _configured_count_roots(config: Dict[str, Any]) -> list[tuple[str, str]]:
@@ -263,13 +319,21 @@ def _count_extensions(config: Dict[str, Any], extensions: list[str] | None = Non
 
 
 def _consolidate_database_backups(db_path: str) -> None:
+    db_path = resolve_regular_file_path(
+        os.path.dirname(db_path), os.path.basename(db_path)
+    )
     _cleanup_sqlite_sidecars(db_path)
-    backup_path = db_path + ".backup"
-    legacy_paths = [db_path + ".bak", db_path + ".bak_sync"]
+    directory = os.path.dirname(db_path)
+    filename = os.path.basename(db_path)
+    backup_path = resolve_regular_file_path(directory, filename + ".backup")
+    legacy_paths = [
+        resolve_regular_file_path(directory, filename + suffix)
+        for suffix in (".bak", ".bak_sync")
+    ]
     candidates = [p for p in [backup_path, *legacy_paths] if os.path.exists(p)]
     if candidates and not os.path.exists(backup_path):
         newest = max(candidates, key=os.path.getmtime)
-        shutil.copy2(newest, backup_path)
+        _copy_database_file(newest, backup_path)
     for legacy in legacy_paths:
         if os.path.exists(legacy):
             try:
@@ -279,11 +343,16 @@ def _consolidate_database_backups(db_path: str) -> None:
 
 
 def _backup_database(db_path: str) -> None:
+    db_path = resolve_regular_file_path(
+        os.path.dirname(db_path), os.path.basename(db_path)
+    )
     if not _valid_database(db_path):
         return
     _cleanup_sqlite_sidecars(db_path)
-    backup_path = db_path + ".backup"
-    shutil.copy2(db_path, backup_path)
+    backup_path = resolve_regular_file_path(
+        os.path.dirname(db_path), os.path.basename(db_path) + ".backup"
+    )
+    _copy_database_file(db_path, backup_path)
     _consolidate_database_backups(db_path)
 
 
@@ -427,7 +496,7 @@ def list_models(provider: str, request: ModelRequest) -> Dict[str, Any]:
         return {"models": models}
     except Exception as e:
         # Return empty list or error message instead of 500 to avoid breaking UI
-        print(f"Error fetching models for {provider}: {e}")
+        print(f"Error fetching models for {provider} ({type(e).__name__})")
         return {"models": [], "error": format_ai_error(e)}
 
 
@@ -621,20 +690,34 @@ def optimize_rules(request: OptimizeRulesRequest) -> Dict[str, Any]:
 @router.post("/api/config/sync/validate")
 def validate_sync_config(request: SyncValidateRequest):
     """验证同步路径并返回对比信息，让用户选择同步方向"""
-    path = os.path.expanduser(request.path) if request.path else ""
+    path = (
+        os.path.realpath(os.path.abspath(os.path.expanduser(request.path)))
+        if request.path
+        else ""
+    )
 
-    if not path or not os.path.exists(path):
-        return {"success": False, "message": f"无效的同步路径: {path}"}
+    if not path or not os.path.isdir(path):
+        return {"success": False, "message": "无效的同步目录"}
+
+    try:
+        cloud_db_path, sync_meta_path = _preflight_sync_directory(path)
+        cloud_config_status = get_synced_config_status(path)
+    except ValueError:
+        return {"success": False, "message": "同步目录包含不安全的链接文件"}
 
     # [Sync Fix] 强制 Checkpoint 确保 WAL 内容写入 DB 文件。
     # 差异判断使用逻辑指纹，避免启动/打开数据库导致 mtime 变化而误报。
     _checkpoint_database()
 
-    cloud_db_path = os.path.join(path, UNIFIED_DB_NAME)
-
     # 获取本地数据库路径
     current_config = load_config(merge_cloud=False)
     local_db_path = _resolve_local_database_path(current_config)
+    try:
+        local_db_path = resolve_regular_file_path(
+            os.path.dirname(local_db_path), os.path.basename(local_db_path)
+        )
+    except ValueError:
+        return {"success": False, "message": "本地数据库文件不安全"}
 
     # ===== 数据库对比 =====
     cloud_db_exists = os.path.exists(cloud_db_path)
@@ -646,7 +729,6 @@ def validate_sync_config(request: SyncValidateRequest):
     cloud_db_mtime = os.path.getmtime(cloud_db_path) if cloud_db_exists else 0
     local_db_mtime = os.path.getmtime(local_db_path) if local_db_exists else 0
 
-    cloud_config_status = get_synced_config_status(path)
     local_config_exists = os.path.exists(CONFIG_FILE)
     local_config_size = os.path.getsize(CONFIG_FILE) if local_config_exists else 0
     local_config_mtime = os.path.getmtime(CONFIG_FILE) if local_config_exists else 0
@@ -665,12 +747,10 @@ def validate_sync_config(request: SyncValidateRequest):
     )
 
     # ===== 最后同步记录 =====
-    sync_meta_path = os.path.join(path, "sync_meta.json")
     last_sync = None
     if os.path.exists(sync_meta_path):
         try:
-            with open(sync_meta_path, "r", encoding="utf-8") as f:
-                last_sync = json.load(f)
+            last_sync = _read_json_file(sync_meta_path)
         except Exception:
             pass
 
@@ -721,19 +801,35 @@ def validate_sync_config(request: SyncValidateRequest):
 
 @router.post("/api/config/sync")
 def update_sync_config(update: SyncConfigUpdate):
+    try:
+        return _update_sync_config(update)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise internal_error("configuration sync", e, "同步失败，未完成操作")
+
+
+def _update_sync_config(update: SyncConfigUpdate):
     """更新同步配置，并处理数据迁移逻辑"""
     messages = []
     current_config = load_config(merge_cloud=False)
 
     if update.enabled:
         if update.path:
-            update.path = os.path.expanduser(update.path)
+            update.path = os.path.realpath(
+                os.path.abspath(os.path.expanduser(update.path))
+            )
 
-        if not update.path or not os.path.exists(update.path):
+        if not update.path or not os.path.isdir(update.path):
             return {
                 "success": False,
-                "message": f"无效的同步路径或目录不存在: {update.path}",
+                "message": "无效的同步目录",
             }
+
+        try:
+            cloud_db_path, sync_meta_path = _preflight_sync_directory(update.path)
+        except ValueError:
+            return {"success": False, "message": "同步目录包含不安全的链接文件"}
 
         sync_settings = dict(current_config.get("sync", {}))
         sync_settings.update(
@@ -750,9 +846,13 @@ def update_sync_config(update: SyncConfigUpdate):
         )
         current_config["sync"] = sync_settings
 
-        cloud_db_path = os.path.join(update.path, UNIFIED_DB_NAME)
-
         source_db_path = _resolve_local_database_path(current_config)
+        try:
+            source_db_path = resolve_regular_file_path(
+                os.path.dirname(source_db_path), os.path.basename(source_db_path)
+            )
+        except ValueError:
+            return {"success": False, "message": "本地数据库文件不安全"}
         local_db_path = source_db_path
 
         cloud_valid = _valid_database(cloud_db_path)
@@ -768,9 +868,7 @@ def update_sync_config(update: SyncConfigUpdate):
         if db_action == "skip":
             db_msg = "已跳过数据库同步"
         elif db_action == "upload" and source_valid:
-            if cloud_valid:
-                _backup_database(cloud_db_path)
-            shutil.copy2(source_db_path, cloud_db_path)
+            _replace_database_file(source_db_path, cloud_db_path)
             db_msg = (
                 f"已将本地数据库上传至云端 "
                 f"({os.path.getsize(source_db_path) / 1024 / 1024:.1f}MB)"
@@ -778,8 +876,9 @@ def update_sync_config(update: SyncConfigUpdate):
         elif db_action == "download" and cloud_valid:
             os.makedirs(os.path.dirname(local_db_path), exist_ok=True)
             if local_db_path != cloud_db_path:
-                _backup_database(local_db_path)
-                shutil.copy2(cloud_db_path, local_db_path)
+                _replace_database_file(
+                    cloud_db_path, local_db_path, close_local_connection=True
+                )
             db_msg = (
                 f"已从云端下载数据库 "
                 f"({os.path.getsize(cloud_db_path) / 1024 / 1024:.1f}MB)"
@@ -788,22 +887,21 @@ def update_sync_config(update: SyncConfigUpdate):
             if update.use_cloud is True:
                 os.makedirs(os.path.dirname(local_db_path), exist_ok=True)
                 if local_db_path != cloud_db_path:
-                    _backup_database(local_db_path)
-                    shutil.copy2(cloud_db_path, local_db_path)
+                    _replace_database_file(
+                        cloud_db_path, local_db_path, close_local_connection=True
+                    )
                 db_msg = (
                     f"已从云端下载数据库 "
                     f"({os.path.getsize(cloud_db_path) / 1024 / 1024:.1f}MB)"
                 )
             elif update.use_cloud is False and source_valid:
-                _backup_database(cloud_db_path)
-                shutil.copy2(source_db_path, cloud_db_path)
+                _replace_database_file(source_db_path, cloud_db_path)
                 db_msg = (
                     f"已将本地数据库上传至云端 "
                     f"({os.path.getsize(source_db_path) / 1024 / 1024:.1f}MB)"
                 )
             elif update.overwrite_cloud and source_valid:
-                _backup_database(cloud_db_path)
-                shutil.copy2(source_db_path, cloud_db_path)
+                _replace_database_file(source_db_path, cloud_db_path)
                 db_msg = "已将本地数据同步至云端"
             else:
                 # Auto-sync logic
@@ -848,15 +946,17 @@ def update_sync_config(update: SyncConfigUpdate):
                         db_msg = "数据库内容不同，未能自动判断方向；请手动选择上传或下载"
 
                 if should_upload:
-                    _backup_database(cloud_db_path)
-                    shutil.copy2(source_db_path, cloud_db_path)
+                    _replace_database_file(source_db_path, cloud_db_path)
                 elif should_download:
                     os.makedirs(os.path.dirname(local_db_path), exist_ok=True)
                     if local_db_path != cloud_db_path:
-                        _backup_database(local_db_path)
-                        shutil.copy2(cloud_db_path, local_db_path)
+                        _replace_database_file(
+                            cloud_db_path,
+                            local_db_path,
+                            close_local_connection=True,
+                        )
         elif source_valid and db_action != "skip":
-            shutil.copy2(source_db_path, cloud_db_path)
+            _copy_database_file(source_db_path, cloud_db_path)
             db_msg = "已将本地数据同步至云端"
         else:
             db_msg = "已启用同步，数据库将在云端创建"
@@ -928,11 +1028,9 @@ def update_sync_config(update: SyncConfigUpdate):
                 "time": datetime.datetime.now().isoformat(),
                 "action": msg[:50] if msg else "sync",
             }
-            sync_meta_path = os.path.join(update.path, "sync_meta.json")
-            with open(sync_meta_path, "w", encoding="utf-8") as f:
-                json.dump(sync_meta, f, ensure_ascii=False, indent=2)
+            _write_json_file(sync_meta_path, sync_meta)
         except Exception as e:
-            print(f"Error saving sync meta: {e}")
+            print(f"Error saving sync metadata ({type(e).__name__})")
     else:
         sync_settings = dict(current_config.get("sync", {}))
         sync_settings.update(

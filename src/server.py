@@ -74,14 +74,14 @@ async def lifespan(app: FastAPI):
     try:
         init_learned_rules_async(delay_seconds=3.0)
     except Exception as e:
-        print(f"[Startup] 本地规则初始化跳过: {e}")
+        print(f"[Startup] 本地规则初始化跳过 ({type(e).__name__})")
 
     # 换机或同步盘挂载名变化后，数据库中可能存在旧绝对路径。
     # 后台只做可唯一匹配的路径修复，不删除记录，不阻塞启动。
     try:
         start_auto_library_path_repair(delay_seconds=4.0)
     except Exception as e:
-        print(f"[Startup] 图书路径自动适配跳过: {e}")
+        print(f"[Startup] 图书路径自动适配跳过 ({type(e).__name__})")
 
     # 只自动读取配置文件，数据库同步改为用户手动确认。
     try:
@@ -113,7 +113,7 @@ async def lifespan(app: FastAPI):
                     "[Startup] Config sync ready (database sync requires manual action)"
                 )
     except Exception as e:
-        print(f"[Startup] Auto-sync error (non-fatal): {e}")
+        print(f"[Startup] Auto-sync error (non-fatal, {type(e).__name__})")
 
     yield
     # Shutdown: Close DB and release lock (no sync on shutdown)
@@ -160,8 +160,7 @@ if getattr(sys, "frozen", False):
     sys.stderr = open(log_path, "a", buffering=1)
 
     print(f"--- Book Organizer Started at {datetime.datetime.now()} ---")
-    print(f"Log path: {log_path}")
-    print(f"App location: {os.getcwd()}")
+    print("Application log initialized")
 
 
 def get_static_dir():
@@ -250,7 +249,7 @@ def main():
             server_thread.start()
             time.sleep(1)
         else:
-            print(f"Port {server_port} busy by BookOrganizer, assuming server running.")
+            print("Book Organizer API is already running")
 
         # Create native window with persistent storage
         print("Creating webview window with Bundle ID: com.peter.bookorganizer")
@@ -269,12 +268,10 @@ def main():
         # Last resort crash logging
         crash_log = os.path.join(os.path.expanduser("~"), "book_organizer_crash.log")
         with open(crash_log, "a") as f:
-            import traceback
-
-            f.write(f"\n--- CRASH AT {os.getcwd()} ---\n")
-            f.write(str(e))
-            f.write("\n")
-            traceback.print_exc(file=f)
+            f.write(
+                f"\n--- Book Organizer crash at {datetime.datetime.now()} "
+                f"({type(e).__name__}) ---\n"
+            )
         return 1
     finally:
         analysis_router.shutdown_analysis()

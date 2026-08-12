@@ -317,7 +317,7 @@ def get_cover_image(file_path: str) -> Optional[bytes]:
                 return cover_item.get_content()
 
         except Exception as e:
-            print(f"  ⚠️ 读取EPUB封面失败 [{os.path.basename(file_path)}]: {e}")
+            print(f"  ⚠️ 读取 EPUB 封面失败 ({type(e).__name__})")
 
     # PDF 封面提取（使用第一页作为封面）
     elif ext == ".pdf":
@@ -335,7 +335,7 @@ def get_cover_image(file_path: str) -> Optional[bytes]:
         except ImportError:
             pass
         except Exception as e:
-            print(f"  ⚠️ 读取PDF封面失败 [{os.path.basename(file_path)}]: {e}")
+            print(f"  ⚠️ 读取 PDF 封面失败 ({type(e).__name__})")
 
     return None
 
@@ -442,7 +442,7 @@ def find_similar_files(
         ]
 
     except Exception as e:
-        print(f"Error in find_similar_files: {e}")
+        print(f"Error in find_similar_files ({type(e).__name__})")
         return []
 
 

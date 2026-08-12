@@ -146,7 +146,7 @@ def extract_pdf_toc(file_path: str) -> List[Dict]:
         logger.error("PyMuPDF (fitz) not installed")
         return []
     except Exception as e:
-        logger.error(f"Failed to extract PDF TOC from {file_path}: {e}")
+        logger.error("Failed to extract PDF TOC (%s)", type(e).__name__)
         return []
 
 
@@ -240,7 +240,7 @@ def _guess_pdf_toc_from_text(file_path: str, max_pages: int = 20) -> List[Dict]:
         logger.error("PyMuPDF (fitz) not installed")
         return []
     except Exception as e:
-        logger.error(f"Failed to infer PDF TOC from text: {e}")
+        logger.error("Failed to infer PDF TOC from text (%s)", type(e).__name__)
         return []
 
 
@@ -366,7 +366,7 @@ def extract_epub_toc(file_path: str, max_chapters: int = 30) -> List[Dict]:
         logger.error("ebooklib or beautifulsoup4 not installed")
         return []
     except Exception as e:
-        logger.error(f"Failed to extract EPUB TOC from {file_path}: {e}")
+        logger.error("Failed to extract EPUB TOC (%s)", type(e).__name__)
         return []
 
 
@@ -506,7 +506,7 @@ def _extract_pdf_pages(file_path: str, num_pages: int) -> str:
         doc.close()
         return "\n\n".join(content)
     except Exception as e:
-        logger.error(f"Failed to extract PDF pages: {e}")
+        logger.error("Failed to extract PDF pages (%s)", type(e).__name__)
         return ""
 
 
@@ -537,7 +537,7 @@ def _extract_epub_chapters(file_path: str, num_chapters: int) -> str:
 
         return "\n\n".join(content)
     except Exception as e:
-        logger.error(f"Failed to extract EPUB chapters: {e}")
+        logger.error("Failed to extract EPUB chapters (%s)", type(e).__name__)
         return ""
 
 
@@ -566,7 +566,7 @@ def ai_organize_toc(raw_toc: List[Dict], prompt_template: str, ai_func) -> str:
         result = ai_func(prompt)
         return result if result else ""
     except Exception as e:
-        logger.error(f"AI organize TOC failed: {e}")
+        logger.error("AI organize TOC failed (%s)", type(e).__name__)
         return ""
 
 
@@ -592,5 +592,5 @@ def ai_extract_toc_from_content(content: str, prompt_template: str, ai_func) -> 
         result = ai_func(prompt)
         return result if result else ""
     except Exception as e:
-        logger.error(f"AI extract TOC from content failed: {e}")
+        logger.error("AI extract TOC from content failed (%s)", type(e).__name__)
         return ""
