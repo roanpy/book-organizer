@@ -60,7 +60,7 @@ ollama==0.6.1
 openai==2.20.0
 packaging==25.0
 pikepdf==9.4.2
-pillow==12.3.0
+pillow==13.0.0
 primp==1.2.3
 propcache==0.5.2
 proto-plus==1.26.1
